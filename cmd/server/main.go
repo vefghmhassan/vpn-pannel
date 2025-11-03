@@ -31,12 +31,13 @@ func main() {
 	// Template engine
 	engine := html.New("web/templates", ".html")
 
-	app := fiber.New(fiber.Config{
-		Views:        engine,
-		ViewsLayout:  "layout",
-		ServerHeader: "VpnPannel",
-		AppName:      "VpnPannel Admin",
-	})
+    app := fiber.New(fiber.Config{
+        Views:        engine,
+        ViewsLayout:  "layout",
+        ServerHeader: "VpnPannel",
+        AppName:      "VpnPannel Admin",
+        BodyLimit:    200 * 1024 * 1024, // allow up to 200MB uploads
+    })
 
 	// Static assets (optional, for logos etc.)
 	app.Static("/static", "public")

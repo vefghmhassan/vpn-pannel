@@ -1,0 +1,33 @@
+<div class="flex justify-between items-center mb-4">
+  <h2 class="text-xl font-bold">نسخه‌های اپ</h2>
+  <a href="/admin/app/new" class="btn btn-primary">افزودن نسخه</a>
+</div>
+
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr><th>Version Code</th><th>Version Name</th><th>اجباری</th><th>بیلدها (ABI)</th><th></th></tr>
+        </thead>
+        <tbody>
+          {{ range .versions }}
+          <tr>
+            <td>{{ .VersionCode }}</td>
+            <td>{{ .VersionName }}</td>
+            <td>{{ if .IsMandatory }}<div class="badge badge-error">اجباری</div>{{ else }}<div class="badge">اختیاری</div>{{ end }}</td>
+            <td>
+              {{ range .Builds }}
+                <a class="link link-primary" href="{{ .FilePath }}" target="_blank">{{ .ABI }}</a>
+              {{ end }}
+            </td>
+            <td></td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+

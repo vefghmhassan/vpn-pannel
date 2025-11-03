@@ -41,6 +41,8 @@ func AutoMigrateAndSeed() error {
 		&models.OutageReport{},
 		&models.SplashProtocol{},
 		&models.AppSettings{},
+        &models.AppVersion{},
+        &models.AppBuild{},
 	); err != nil {
 		return err
 	}

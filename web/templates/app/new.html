@@ -1,0 +1,54 @@
+<h2 class="text-xl font-bold mb-4">افزودن نسخه جدید</h2>
+
+<form method="post" action="/admin/app/new" enctype="multipart/form-data" class="space-y-4">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <label class="form-control">
+      <div class="label"><span class="label-text">Version Code</span></div>
+      <input name="version_code" class="input input-bordered" required />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">Version Name</span></div>
+      <input name="version_name" class="input input-bordered" />
+    </label>
+    <label class="label cursor-pointer justify-start gap-2">
+      <input type="checkbox" name="mandatory" class="checkbox" />
+      <span class="label-text">به‌روزرسانی اجباری</span>
+    </label>
+  </div>
+
+  <label class="form-control">
+    <div class="label"><span class="label-text">Changelog</span></div>
+    <textarea name="changelog" rows="4" class="textarea textarea-bordered"></textarea>
+  </label>
+
+  <div class="divider">فایل‌های APK بر اساس ABI</div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <label class="form-control">
+      <div class="label"><span class="label-text">arm64-v8a</span></div>
+      <input type="file" name="file_arm64-v8a" class="file-input file-input-bordered" accept=".apk" />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">armeabi-v7a</span></div>
+      <input type="file" name="file_armeabi-v7a" class="file-input file-input-bordered" accept=".apk" />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">x86</span></div>
+      <input type="file" name="file_x86" class="file-input file-input-bordered" accept=".apk" />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">x86_64</span></div>
+      <input type="file" name="file_x86_64" class="file-input file-input-bordered" accept=".apk" />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">universal</span></div>
+      <input type="file" name="file_universal" class="file-input file-input-bordered" accept=".apk" />
+    </label>
+  </div>
+
+  <div class="flex gap-2">
+    <button class="btn btn-primary" type="submit">ثبت نسخه</button>
+    <a class="btn" href="/admin/app">بازگشت</a>
+  </div>
+</form>
+
+

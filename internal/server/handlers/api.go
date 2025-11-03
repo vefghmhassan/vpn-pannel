@@ -263,3 +263,46 @@ func ApiSettings(c *fiber.Ctx) error {
 		"current_version":       s.CurrentVersion,
 	})
 }
+
+// ApiCheckUpdate: client sends version_code and abi, server responds with download URL if newer
+func ApiCheckUpdate(c *fiber.Ctx) error {
+    var in struct {
+        VersionCode int    `json:"version_code"`
+        ABI         string `json:"abi"`
+    }
+    if err := c.BodyParser(&in); err != nil {
+        return fiber.ErrBadRequest
+    }
+    if in.VersionCode <= 0 {
+        return fiber.NewError(fiber.StatusBadRequest, "version_code required")
+    }
+    // find latest version with higher version_code
+    var latest models.AppVersion
+    if err := database.DB.Where("version_code > ?", in.VersionCode).Order("version_code desc").First(&latest).Error; err != nil {
+        return c.JSON(fiber.Map{"update": false})
+    }
+    // find matching build by ABI, fallback to universal
+    var build models.AppBuild
+    if in.ABI != "" {
+        if err := database.DB.Where("app_version_id = ? AND abi = ?", latest.ID, in.ABI).First(&build).Error; err != nil {
+            _ = database.DB.Where("app_version_id = ? AND abi = ?", latest.ID, "universal").First(&build).Error
+        }
+    } else {
+        _ = database.DB.Where("app_version_id = ? AND abi = ?", latest.ID, "universal").First(&build).Error
+    }
+    if build.ID == 0 {
+        // no suitable build available
+        return c.JSON(fiber.Map{"update": true, "version_code": latest.VersionCode, "version_name": latest.VersionName, "mandatory": latest.IsMandatory, "changelog": latest.Changelog, "url": nil})
+    }
+    return c.JSON(fiber.Map{
+        "update":       true,
+        "version_code": latest.VersionCode,
+        "version_name": latest.VersionName,
+        "mandatory":    latest.IsMandatory,
+        "changelog":    latest.Changelog,
+        "abi":          build.ABI,
+        "url":          build.FilePath,
+        "size":         build.FileSize,
+        "sha256":       build.Sha256,
+    })
+}

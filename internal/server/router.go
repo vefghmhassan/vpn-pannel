@@ -10,6 +10,8 @@ import (
 )
 
 func RegisterRoutes(app *fiber.App) {
+    // Serve uploaded files
+    app.Static("/uploads", "./uploads")
 	// Auth
 	app.Get("/login", handlers.LoginPage)
 	app.Post("/login", handlers.LoginSubmit)
@@ -22,6 +24,10 @@ func RegisterRoutes(app *fiber.App) {
 	admin := app.Group("/admin", middleware.AuthRequired("SUPER_ADMIN", "ADMIN", "SUPPORT"))
 	// Admin metrics
 	admin.Get("/metrics/active-users", handlers.ActiveUsersCount)
+	// App versions
+	admin.Get("/app", handlers.AppList)
+	admin.Get("/app/new", handlers.AppNewPage)
+	admin.Post("/app/new", handlers.AppCreate)
 	// Settings
 	admin.Get("/settings", handlers.SettingsPage)
 	admin.Post("/settings", handlers.SettingsUpdate)
@@ -65,6 +71,7 @@ func RegisterRoutes(app *fiber.App) {
 	api.Post("/splash", handlers.ApiSPlash)
 	api.Post("/last-connection", handlers.ApiAuth, handlers.ApiLastConnection)
 	api.Get("/settings", handlers.ApiSettings)
+	api.Post("/app/check-update", handlers.ApiCheckUpdate)
 
 	// Health
 	app.Get("/healthz", func(c *fiber.Ctx) error {
