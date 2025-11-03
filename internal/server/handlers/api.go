@@ -202,3 +202,18 @@ func ApiSPlash(c *fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"splash": resp})
 }
+
+// ApiSettings returns public application settings for the mobile app
+func ApiSettings(c *fiber.Ctx) error {
+	var s models.AppSettings
+	if err := database.DB.First(&s, 1).Error; err != nil {
+		// ensure a default response even if not seeded yet
+		s = models.AppSettings{AdsEnabledInSplash: false, ShowAdsAfterSplash: false, ShowAdsOnMainPage: false, CurrentVersion: "1.0.0"}
+	}
+	return c.JSON(fiber.Map{
+		"ads_enabled_in_splash": s.AdsEnabledInSplash,
+		"show_ads_after_splash": s.ShowAdsAfterSplash,
+		"show_ads_on_main_page": s.ShowAdsOnMainPage,
+		"current_version":       s.CurrentVersion,
+	})
+}

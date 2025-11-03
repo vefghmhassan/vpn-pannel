@@ -30,7 +30,7 @@ func Load() error {
 		AdminEmail:    getenv("ADMIN_EMAIL", "admin@example.com"),
 		AdminPassword: getenv("ADMIN_PASSWORD", "admin1234"),
 		FCMServerKey:  getenv("FCM_SERVER_KEY", ""),
-		SplashURL:     getenv("SPLASH_URL", "https://amur.wooddentools.net/api/protocols/splash"),
+		SplashURL:     getenv("SPLASH_URL", "https://wooddentools.net/api/protocols/splash"),
 	}
 
 	// Map headers from env with SPLASH_HEADER_ prefix
