@@ -1,0 +1,40 @@
+<div class="bg-base-100 rounded-box shadow p-3 mb-4 flex items-center justify-between">
+  <h1 class="text-2xl font-bold">تنظیمات برنامه</h1>
+</div>
+
+<form method="post" action="/admin/settings" class="space-y-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <label class="form-control cursor-pointer">
+      <div class="label">
+        <span class="label-text">فعال بودن تبلیغات در Splash</span>
+      </div>
+      <input type="checkbox" name="ads_enabled_in_splash" class="toggle toggle-primary" {{ if .s.AdsEnabledInSplash }}checked{{ end }} />
+    </label>
+
+    <label class="form-control cursor-pointer">
+      <div class="label">
+        <span class="label-text">نمایش تبلیغ بعد از Splash</span>
+      </div>
+      <input type="checkbox" name="show_ads_after_splash" class="toggle toggle-primary" {{ if .s.ShowAdsAfterSplash }}checked{{ end }} />
+    </label>
+
+    <label class="form-control cursor-pointer">
+      <div class="label">
+        <span class="label-text">نمایش تبلیغات در صفحه اصلی</span>
+      </div>
+      <input type="checkbox" name="show_ads_on_main_page" class="toggle toggle-primary" {{ if .s.ShowAdsOnMainPage }}checked{{ end }} />
+    </label>
+
+    <label class="form-control">
+      <div class="label"><span class="label-text">نسخه فعلی برنامه</span></div>
+      <input class="input input-bordered" name="current_version" value="{{ .s.CurrentVersion }}" />
+    </label>
+  </div>
+
+  <div class="flex gap-2">
+    <button class="btn btn-primary" type="submit">ذخیره</button>
+    <a class="btn" href="/">بازگشت</a>
+  </div>
+</form>
+
+
