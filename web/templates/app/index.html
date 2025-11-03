@@ -8,11 +8,12 @@
     <div class="overflow-x-auto">
       <table class="table">
         <thead>
-          <tr><th>Version Code</th><th>Version Name</th><th>اجباری</th><th>بیلدها (ABI)</th><th></th></tr>
+          <tr><th>Package</th><th>Version Code</th><th>Version Name</th><th>اجباری</th><th>بیلدها (ABI)</th><th></th></tr>
         </thead>
         <tbody>
           {{ range .versions }}
           <tr>
+            <td><code class="text-xs">{{ .PackageName }}</code></td>
             <td>{{ .VersionCode }}</td>
             <td>{{ .VersionName }}</td>
             <td>{{ if .IsMandatory }}<div class="badge badge-error">اجباری</div>{{ else }}<div class="badge">اختیاری</div>{{ end }}</td>

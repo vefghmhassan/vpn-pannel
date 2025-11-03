@@ -8,6 +8,7 @@ import (
     "os"
     "path/filepath"
     "strconv"
+    "strings"
 
     "github.com/gofiber/fiber/v2"
     "vpnpannel/internal/database"
@@ -30,17 +31,22 @@ func AppNewPage(c *fiber.Ctx) error {
 }
 
 func AppCreate(c *fiber.Ctx) error {
+    packageName := strings.TrimSpace(c.FormValue("package_name"))
     versionCode, _ := strconv.Atoi(c.FormValue("version_code"))
     versionName := c.FormValue("version_name")
     changelog := c.FormValue("changelog")
     isMandatory := c.FormValue("mandatory") == "on"
+    if packageName == "" {
+        return fiber.NewError(fiber.StatusBadRequest, "package_name required")
+    }
     if versionCode <= 0 {
         return fiber.NewError(fiber.StatusBadRequest, "invalid version_code")
     }
 
     // create or upsert version
-    v := models.AppVersion{VersionCode: versionCode}
-    if err := database.DB.Where("version_code = ?", versionCode).First(&v).Error; err != nil {
+    v := models.AppVersion{PackageName: packageName, VersionCode: versionCode}
+    if err := database.DB.Where("package_name = ? AND version_code = ?", packageName, versionCode).First(&v).Error; err != nil {
+        v.PackageName = packageName
         v.VersionName = versionName
         v.Changelog = changelog
         v.IsMandatory = isMandatory
@@ -55,7 +61,19 @@ func AppCreate(c *fiber.Ctx) error {
     }
 
     // ensure folder exists
-    baseDir := filepath.Join("uploads", "apk", fmt.Sprintf("%d", versionCode))
+    safePkg := func(s string) string {
+        s = strings.ToLower(s)
+        b := make([]rune, 0, len(s))
+        for _, r := range s {
+            if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '.' || r == '_' {
+                b = append(b, r)
+            } else {
+                b = append(b, '-')
+            }
+        }
+        return string(b)
+    }
+    baseDir := filepath.Join("uploads", "apk", safePkg(packageName), fmt.Sprintf("%d", versionCode))
     if err := os.MkdirAll(baseDir, 0o755); err != nil {
         return fiber.ErrInternalServerError
     }
@@ -79,7 +97,7 @@ func AppCreate(c *fiber.Ctx) error {
         dst.Close()
         sha := hex.EncodeToString(hasher.Sum(nil))
 
-        publicPath := "/uploads/" + filepath.ToSlash(filepath.Join("apk", fmt.Sprintf("%d", versionCode), abi+".apk"))
+        publicPath := "/uploads/" + filepath.ToSlash(filepath.Join("apk", safePkg(packageName), fmt.Sprintf("%d", versionCode), abi+".apk"))
 
         // upsert build by abi
         var b models.AppBuild

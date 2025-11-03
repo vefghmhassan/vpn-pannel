@@ -17,4 +17,11 @@ type AppSettings struct {
 	ShowAdsOnMainPage bool `gorm:"not null;default:false" json:"showAdsOnMainPage"`
 	// Current application version string (e.g., 1.0.0)
 	CurrentVersion string `gorm:"size:32;not null;default:'1.0.0'" json:"currentVersion"`
+
+	// Mobile ads unit id (if any)
+	AdUnitID string `gorm:"size:128" json:"adUnitId"`
+	// Privacy policy URL for the app
+	PrivacyURL string `gorm:"size:255" json:"privacyUrl"`
+	// Timeout (seconds) for considering a connection as established
+	ConnectedTimeoutSeconds int `gorm:"not null;default:15" json:"connectedTimeout"`
 }

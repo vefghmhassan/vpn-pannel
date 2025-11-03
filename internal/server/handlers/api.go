@@ -254,31 +254,41 @@ func ApiSettings(c *fiber.Ctx) error {
 	var s models.AppSettings
 	if err := database.DB.First(&s, 1).Error; err != nil {
 		// ensure a default response even if not seeded yet
-		s = models.AppSettings{AdsEnabledInSplash: false, ShowAdsAfterSplash: false, ShowAdsOnMainPage: false, CurrentVersion: "1.0.0"}
+        s = models.AppSettings{AdsEnabledInSplash: false, ShowAdsAfterSplash: false, ShowAdsOnMainPage: false, CurrentVersion: "1.0.0", ConnectedTimeoutSeconds: 15}
 	}
 	return c.JSON(fiber.Map{
 		"ads_enabled_in_splash": s.AdsEnabledInSplash,
 		"show_ads_after_splash": s.ShowAdsAfterSplash,
 		"show_ads_on_main_page": s.ShowAdsOnMainPage,
 		"current_version":       s.CurrentVersion,
+        "ad_unit_id":            s.AdUnitID,
+        "privacy_url":           s.PrivacyURL,
+        "connected_timeout":     s.ConnectedTimeoutSeconds,
 	})
 }
 
 // ApiCheckUpdate: client sends version_code and abi, server responds with download URL if newer
 func ApiCheckUpdate(c *fiber.Ctx) error {
     var in struct {
+        PackageName string `json:"package_name"`
+        Package     string `json:"package"`
         VersionCode int    `json:"version_code"`
         ABI         string `json:"abi"`
     }
     if err := c.BodyParser(&in); err != nil {
         return fiber.ErrBadRequest
     }
+    pkg := strings.TrimSpace(in.PackageName)
+    if pkg == "" { pkg = strings.TrimSpace(in.Package) }
+    if pkg == "" {
+        return fiber.NewError(fiber.StatusBadRequest, "package_name required")
+    }
     if in.VersionCode <= 0 {
         return fiber.NewError(fiber.StatusBadRequest, "version_code required")
     }
     // find latest version with higher version_code
     var latest models.AppVersion
-    if err := database.DB.Where("version_code > ?", in.VersionCode).Order("version_code desc").First(&latest).Error; err != nil {
+    if err := database.DB.Where("package_name = ? AND version_code > ?", pkg, in.VersionCode).Order("version_code desc").First(&latest).Error; err != nil {
         return c.JSON(fiber.Map{"update": false})
     }
     // find matching build by ABI, fallback to universal

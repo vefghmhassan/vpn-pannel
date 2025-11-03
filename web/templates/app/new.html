@@ -3,6 +3,10 @@
 <form method="post" action="/admin/app/new" enctype="multipart/form-data" class="space-y-4">
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
     <label class="form-control">
+      <div class="label"><span class="label-text">Package Name</span></div>
+      <input name="package_name" class="input input-bordered" placeholder="com.example.app" required />
+    </label>
+    <label class="form-control">
       <div class="label"><span class="label-text">Version Code</span></div>
       <input name="version_code" class="input input-bordered" required />
     </label>

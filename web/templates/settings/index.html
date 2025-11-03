@@ -29,6 +29,18 @@
       <div class="label"><span class="label-text">نسخه فعلی برنامه</span></div>
       <input class="input input-bordered" name="current_version" value="{{ .s.CurrentVersion }}" />
     </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">AD_UNIT_ID</span></div>
+      <input class="input input-bordered" name="ad_unit_id" value="{{ .s.AdUnitID }}" />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">Privacy URL</span></div>
+      <input class="input input-bordered" name="privacy_url" value="{{ .s.PrivacyURL }}" placeholder="https://example.com/privacy" />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">Connected Timeout (sec)</span></div>
+      <input class="input input-bordered" name="connected_timeout" value="{{ .s.ConnectedTimeoutSeconds }}" />
+    </label>
   </div>
 
   <div class="flex gap-2">

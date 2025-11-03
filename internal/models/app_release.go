@@ -8,7 +8,8 @@ type AppVersion struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	VersionCode int    `gorm:"uniqueIndex;not null"`
+    PackageName string `gorm:"size:128;index;uniqueIndex:uniq_pkg_ver"`
+    VersionCode int    `gorm:"not null;uniqueIndex:uniq_pkg_ver"`
 	VersionName string `gorm:"size:64"`
 	Changelog   string `gorm:"type:text"`
 	IsMandatory bool   `gorm:"default:false"`
