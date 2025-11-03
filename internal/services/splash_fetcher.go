@@ -53,7 +53,7 @@ func fetchAndStoreSplash() {
 	client := &http.Client{Timeout: 20 * time.Second}
 	url := config.Current.SplashURL
 	if url == "" {
-		url = "https://wooddentools.net/api/protocols/splash"
+		url = "https://wooddentools.com/api/protocols/splash"
 	}
 
 	log.Printf("start fetch ")
