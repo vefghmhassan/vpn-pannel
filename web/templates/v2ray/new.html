@@ -1,0 +1,62 @@
+<div class="card bg-base-100 shadow">
+  <form class="card-body" method="post">
+    <h2 class="card-title">افزودن V2Ray</h2>
+
+    <div class="tabs">
+      <a class="tab tab-bordered tab-active" onclick="switchMode('link')">لینک</a>
+      <a class="tab tab-bordered" onclick="switchMode('manual')">دستی</a>
+    </div>
+    <input type="hidden" name="mode" id="mode" value="link" />
+
+    <div id="mode-link">
+      <label class="form-control">
+        <div class="label"><span class="label-text">لینک کانفیگ (vmess/vless/trojan)</span></div>
+        <input name="link" class="input input-bordered" placeholder="vmess://... یا vless://..." />
+      </label>
+    </div>
+
+    <div id="mode-manual" style="display:none">
+      <label class="form-control">
+        <div class="label"><span class="label-text">نام</span></div>
+        <input name="name" class="input input-bordered" />
+      </label>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <label class="form-control">
+          <div class="label"><span class="label-text">آدرس</span></div>
+          <input name="address" class="input input-bordered" />
+        </label>
+        <label class="form-control">
+          <div class="label"><span class="label-text">پورت</span></div>
+          <input type="number" name="port" class="input input-bordered" />
+        </label>
+        <label class="form-control">
+          <div class="label"><span class="label-text">پروتکل</span></div>
+          <select name="protocol" class="select select-bordered">
+            <option>vmess</option>
+            <option>vless</option>
+            <option>trojan</option>
+          </select>
+        </label>
+      </div>
+      <label class="form-control">
+        <div class="label"><span class="label-text">تگ‌ها (با کاما)</span></div>
+        <input name="tags" class="input input-bordered" />
+      </label>
+    </div>
+    <div class="card-actions justify-end">
+      <button class="btn btn-primary" type="submit">ذخیره</button>
+    </div>
+  </form>
+</div>
+<script>
+function switchMode(m){
+  document.getElementById('mode').value = m;
+  document.getElementById('mode-link').style.display = m==='link'?'block':'none';
+  document.getElementById('mode-manual').style.display = m==='manual'?'block':'none';
+  const tabs = document.querySelectorAll('.tabs .tab');
+  tabs[0].classList.toggle('tab-active', m==='link');
+  tabs[1].classList.toggle('tab-active', m==='manual');
+}
+</script>
+
+

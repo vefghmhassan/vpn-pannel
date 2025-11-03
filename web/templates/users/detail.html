@@ -1,0 +1,37 @@
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="card bg-base-100 shadow col-span-1">
+    <div class="card-body">
+      <h2 class="card-title">کاربر #{{ .user.ID }}</h2>
+      <div>نام کاربری: <b>{{ .user.Username }}</b></div>
+      <div>ایمیل: <b>{{ .user.Email }}</b></div>
+      <div>نقش: <div class="badge">{{ .user.Role }}</div></div>
+      <div>وضعیت: {{ if .user.IsActive }}<div class="badge badge-success">فعال</div>{{ else }}<div class="badge">غیرفعال</div>{{ end }}</div>
+    </div>
+  </div>
+  <div class="card bg-base-100 shadow col-span-2">
+    <div class="card-body">
+      <h2 class="card-title">دستگاه‌های موبایل</h2>
+      <div class="overflow-x-auto">
+        <table class="table">
+          <thead>
+            <tr><th>ID</th><th>Device ID</th><th>FCM Token</th><th>آخرین مشاهده</th></tr>
+          </thead>
+          <tbody>
+            {{ range .devices }}
+            <tr>
+              <td>{{ .ID }}</td>
+              <td>{{ .DeviceID }}</td>
+              <td><code class="text-xs break-all">{{ .FCMToken }}</code></td>
+              <td>{{ .LastSeenAt }}</td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+

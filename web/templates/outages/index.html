@@ -1,0 +1,30 @@
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title">گزارش خرابی</h2>
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr><th>ID</th><th>عنوان</th><th>توضیح</th><th>وضعیت</th><th></th></tr>
+        </thead>
+        <tbody>
+          {{ range .reports }}
+          <tr>
+            <td>{{ .ID }}</td>
+            <td>{{ .Title }}</td>
+            <td>{{ .Description }}</td>
+            <td>{{ .Status }}</td>
+            <td>
+              <a class="btn btn-xs" href="/admin/outages/{{ .ID }}?s=ack">تایید</a>
+              <a class="btn btn-xs btn-success" href="/admin/outages/{{ .ID }}?s=resolve">حل شد</a>
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+
+

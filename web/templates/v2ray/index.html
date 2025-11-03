@@ -1,0 +1,37 @@
+<div class="flex justify-between items-center mb-4">
+  <h2 class="text-xl font-bold">V2Ray Nodes</h2>
+  <a href="/admin/v2ray/new" class="btn btn-primary">افزودن</a>
+</div>
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr><th>ID</th><th>نام</th><th>آدرس</th><th>پورت</th><th>پروتکل</th><th>تگ‌ها</th><th>فعال</th><th></th></tr>
+        </thead>
+        <tbody>
+          {{ range .nodes }}
+          <tr>
+            <td>{{ .ID }}</td>
+            <td>{{ .Name }}</td>
+            <td>{{ .Address }}</td>
+            <td>{{ .Port }}</td>
+            <td>{{ .Protocol }}</td>
+            <td>{{ .Tags }}</td>
+            <td>{{ if .IsActive }}✅{{ else }}❌{{ end }}</td>
+            <td>
+              <form method="post" action="/admin/v2ray/{{ .ID }}/delete">
+                <button class="btn btn-xs btn-error" onclick="return confirm('حذف شود؟')">حذف</button>
+              </form>
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+
+

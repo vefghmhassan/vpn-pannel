@@ -1,0 +1,21 @@
+<div class="card bg-base-100 shadow">
+  <form method="post" class="card-body">
+    <h2 class="card-title">ارسال نوتیفیکیشن</h2>
+    {{ if .ok }}<div class="alert alert-success">ارسال شد</div>{{ end }}
+    <label class="form-control">
+      <div class="label"><span class="label-text">عنوان</span></div>
+      <input name="title" class="input input-bordered" required />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">متن</span></div>
+      <textarea name="body" class="textarea textarea-bordered" rows="4" required></textarea>
+    </label>
+    <div class="card-actions justify-end">
+      <button class="btn btn-primary" type="submit">ارسال</button>
+    </div>
+  </form>
+</div>
+
+
+
+

@@ -1,0 +1,30 @@
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title">لیست کاربران</h2>
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th><th>نام کاربری</th><th>ایمیل</th><th>نقش</th><th>وضعیت</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .users }}
+          <tr>
+            <td>{{ .ID }}</td>
+            <td>{{ .Username }}</td>
+            <td>{{ .Email }}</td>
+            <td><div class="badge">{{ .Role }}</div></td>
+            <td>{{ if .IsActive }}<div class="badge badge-success">فعال</div>{{ else }}<div class="badge">غیرفعال</div>{{ end }}</td>
+            <td><a href="/admin/users/{{ .ID }}" class="btn btn-sm">جزئیات</a></td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+
+
+
+

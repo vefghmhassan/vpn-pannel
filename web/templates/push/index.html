@@ -1,0 +1,188 @@
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title">ارسال پوش نوتیفیکیشن</h2>
+
+    <div class="alert">
+      این فرم فقط UI است و به API موردنظر شما درخواست می‌زند. URL را در فیلد زیر وارد کنید.
+    </div>
+
+    <label class="form-control">
+      <div class="label"><span class="label-text">API URL</span></div>
+      <input id="apiUrl" class="input input-bordered" placeholder="https://example.com/push/send" />
+    </label>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <label class="form-control">
+        <div class="label"><span class="label-text">عنوان</span></div>
+        <input id="title" class="input input-bordered" />
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">زیرعنوان (اختیاری)</span></div>
+        <input id="subtitle" class="input input-bordered" />
+      </label>
+    </div>
+
+    <label class="form-control">
+      <div class="label"><span class="label-text">متن</span></div>
+      <textarea id="body" class="textarea textarea-bordered" rows="4"></textarea>
+    </label>
+
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <label class="form-control">
+        <div class="label"><span class="label-text">Topic/Segment (اختیاری)</span></div>
+        <input id="topic" class="input input-bordered" placeholder="all or segment name" />
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">Image URL (اختیاری)</span></div>
+        <input id="image" class="input input-bordered" placeholder="https://..." />
+      </label>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <label class="form-control">
+        <div class="label"><span class="label-text">Deep Link (اختیاری)</span></div>
+        <input id="deeplink" class="input input-bordered" placeholder="app://route" />
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">Action (اختیاری)</span></div>
+        <input id="action" class="input input-bordered" placeholder="OPEN_APP" />
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">Priority (اختیاری)</span></div>
+        <input id="priority" class="input input-bordered" placeholder="high|normal" />
+      </label>
+    </div>
+
+    <div class="divider">زمان‌بندی (اختیاری)</div>
+    <label class="label cursor-pointer justify-start gap-2">
+      <input id="scheduleToggle" type="checkbox" class="checkbox" />
+      <span class="label-text">ارسال زمان‌بندی‌شده</span>
+    </label>
+    <div id="scheduleBox" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+      <label class="form-control">
+        <div class="label"><span class="label-text">تاریخ و ساعت (تقویم فارسی)</span></div>
+        <input id="schedulePicker" class="input input-bordered" placeholder="مثال: 1403/07/15 18:30" />
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">ISO (خروجی خودکار)</span></div>
+        <input id="scheduleIso" class="input input-bordered" readonly />
+      </label>
+    </div>
+
+    <div class="form-control">
+      <div class="label"><span class="label-text">داده اضافی (JSON اختیاری)</span></div>
+      <textarea id="extra" class="textarea textarea-bordered" rows="4" placeholder='{"key":"value"}'></textarea>
+    </div>
+
+    <div id="result" class="hidden mt-2"></div>
+
+    <div class="card-actions justify-end">
+      <button id="sendBtn" class="btn btn-primary">ارسال</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const btn = document.getElementById('sendBtn');
+  const resBox = document.getElementById('result');
+  const scheduleToggle = document.getElementById('scheduleToggle');
+  const scheduleBox = document.getElementById('scheduleBox');
+  const schedulePicker = document.getElementById('schedulePicker');
+  const scheduleIso = document.getElementById('scheduleIso');
+
+  scheduleToggle.addEventListener('change', () => {
+    if (scheduleToggle.checked) {
+      scheduleBox.classList.remove('hidden');
+    } else {
+      scheduleBox.classList.add('hidden');
+      schedulePicker.value = '';
+      scheduleIso.value = '';
+    }
+  });
+
+  btn.addEventListener('click', async () => {
+    const apiUrl = document.getElementById('apiUrl').value.trim();
+    const title = document.getElementById('title').value.trim();
+    const subtitle = document.getElementById('subtitle').value.trim();
+    const body = document.getElementById('body').value.trim();
+    const topic = document.getElementById('topic').value.trim();
+    const image = document.getElementById('image').value.trim();
+    const deeplink = document.getElementById('deeplink').value.trim();
+    const action = document.getElementById('action').value.trim();
+    const priority = document.getElementById('priority').value.trim();
+    const extraRaw = document.getElementById('extra').value.trim();
+
+    if (!apiUrl) {
+      alert('API URL را وارد کنید');
+      return;
+    }
+    if (!title || !body) {
+      alert('عنوان و متن الزامی است');
+      return;
+    }
+    let extra = undefined;
+    if (extraRaw) {
+      try { extra = JSON.parse(extraRaw); } catch(e) { alert('JSON اضافه نامعتبر است'); return; }
+    }
+
+    const payload = { title, body };
+    if (subtitle) payload.subtitle = subtitle;
+    if (topic) payload.topic = topic;
+    if (image) payload.image = image;
+    if (deeplink) payload.deeplink = deeplink;
+    if (action) payload.action = action;
+    if (priority) payload.priority = priority;
+    if (extra) payload.extra = extra;
+    if (scheduleToggle.checked) {
+      if (!schedulePicker.value.trim()) { alert('تاریخ/ساعت زمان‌بندی را وارد کنید'); return; }
+      if (!scheduleIso.value.trim()) { alert('تبدیل زمان‌بندی به ISO انجام نشد'); return; }
+      payload.schedule_at = scheduleIso.value.trim();
+    }
+
+    resBox.className = 'alert alert-info mt-2';
+    resBox.textContent = 'در حال ارسال...';
+    resBox.classList.remove('hidden');
+
+    try {
+      const r = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const text = await r.text();
+      resBox.className = r.ok ? 'alert alert-success mt-2' : 'alert alert-error mt-2';
+      resBox.textContent = text || (r.ok ? 'ارسال شد' : 'خطا در ارسال');
+    } catch (e) {
+      resBox.className = 'alert alert-error mt-2';
+      resBox.textContent = 'خطا در برقراری ارتباط';
+    }
+  });
+</script>
+
+<!-- Persian datepicker dependencies (CDN) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment-jalaali@0.10.6/build/moment-jalaali.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/persian-date@1.0.6/dist/persian-date.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+<script>
+  // init persian datepicker with time
+  $(function () {
+    $('#schedulePicker').persianDatepicker({
+      format: 'YYYY/MM/DD HH:mm',
+      autoClose: true,
+      timePicker: { enabled: true, second: false },
+      initialValue: false,
+    }).on('change', function () {
+      const val = this.value.trim();
+      if (!val) { scheduleIso.value = ''; return; }
+      try {
+        // parse Jalali to Gregorian ISO using moment-jalaali
+        moment.loadPersian({ usePersianDigits: false });
+        const m = moment.from(val, 'jYYYY/jMM/jDD HH:mm');
+        if (!m.isValid()) { scheduleIso.value = ''; return; }
+        scheduleIso.value = m.toDate().toISOString();
+      } catch (e) { scheduleIso.value = ''; }
+    });
+  });
+</script>
+
+

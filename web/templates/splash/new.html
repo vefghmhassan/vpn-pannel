@@ -1,0 +1,37 @@
+<h1 class="text-2xl font-bold mb-4">ایجاد Splash Protocol</h1>
+
+<form method="post" action="/admin/splash/new" class="space-y-4">
+  <div class="form-control">
+    <label class="label"><span class="label-text">ID (عدد یکتا)</span></label>
+    <input class="input input-bordered" name="id" required />
+  </div>
+  <div class="form-control">
+    <label class="label"><span class="label-text">نام</span></label>
+    <input class="input input-bordered" name="name" required />
+  </div>
+  <div class="form-control">
+    <label class="label"><span class="label-text">value (Base64)</span></label>
+    <textarea class="textarea textarea-bordered" name="value" rows="5" required></textarea>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="form-control">
+      <label class="label"><span class="label-text">price</span></label>
+      <input class="input input-bordered" name="price" value="0" />
+    </div>
+    <div class="form-control">
+      <label class="label"><span class="label-text">usage</span></label>
+      <input class="input input-bordered" name="usage" value="0" />
+    </div>
+    <div class="form-control">
+      <label class="label"><span class="label-text">serverId</span></label>
+      <input class="input input-bordered" name="serverId" value="0" />
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn btn-primary" type="submit">ثبت</button>
+    <a class="btn" href="/admin/splash">بازگشت</a>
+  </div>
+</form>
+
+
+

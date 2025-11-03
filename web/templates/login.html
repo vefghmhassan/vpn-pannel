@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ورود - VpnPannel</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-base-200 min-h-screen flex items-center justify-center">
+  <div class="card w-full max-w-sm shadow bg-base-100">
+    <form method="post" class="card-body">
+      <h2 class="card-title">ورود ادمین</h2>
+      {{ if .error }}
+      <div class="alert alert-error text-sm">{{ .error }}</div>
+      {{ end }}
+      <label class="form-control">
+        <div class="label"><span class="label-text">ایمیل</span></div>
+        <input type="email" name="email" class="input input-bordered" required />
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">رمز عبور</span></div>
+        <input type="password" name="password" class="input input-bordered" required />
+      </label>
+      <div class="card-actions justify-end mt-4">
+        <button class="btn btn-primary" type="submit">ورود</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>
+
+
+
+

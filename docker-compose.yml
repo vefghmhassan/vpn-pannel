@@ -1,0 +1,33 @@
+services:
+
+  db:
+    image: docker.arvancloud.ir/postgres:${POSTGRES_VERSION:-16}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB_NAME:-vpnpannel}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+
+  golang:
+    container_name: ${GO_CONTAINER:-vpnpannel-go}
+    image: ${DOCKER_REGISTRY:-docker.arvancloud.ir/}golang:${GOLANG_VERSION:-1.22}
+    environment:
+      TZ: ${TZ:-Asia/Tehran}
+    volumes:
+      - ./:/app
+      - go-modules:/go/pkg/mod
+    ports:
+      - "8080:8080"
+    env_file: .env
+    working_dir: /app
+    entrypoint: /app/docker/app/entrypoint.sh
+
+volumes:
+  dbdata:
+  go-modules:
+
+
+
