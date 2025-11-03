@@ -20,6 +20,8 @@ func RegisterRoutes(app *fiber.App) {
 
 	// Admin area
 	admin := app.Group("/admin", middleware.AuthRequired("SUPER_ADMIN", "ADMIN", "SUPPORT"))
+	// Admin metrics
+	admin.Get("/metrics/active-users", handlers.ActiveUsersCount)
 	// Settings
 	admin.Get("/settings", handlers.SettingsPage)
 	admin.Post("/settings", handlers.SettingsUpdate)
@@ -58,6 +60,7 @@ func RegisterRoutes(app *fiber.App) {
 	api.Post("/auth/no-login", handlers.ApiNoLogin)
 	api.Get("/profile", handlers.ApiAuth, handlers.ApiProfile)
 	api.Get("/nodes", handlers.ApiAuth, handlers.ApiNodes)
+	api.Post("/heartbeat", handlers.ApiHeartbeat)
 	api.Post("/outages", handlers.ApiAuth, handlers.ApiCreateOutage)
 	api.Post("/splash", handlers.ApiSPlash)
 	api.Post("/last-connection", handlers.ApiAuth, handlers.ApiLastConnection)

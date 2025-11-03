@@ -15,8 +15,23 @@
     <div class="stat-title">گزارش خرابی فعال</div>
     <div class="stat-value">{{ .outages }}</div>
   </div>
+  <div class="stat">
+    <div class="stat-title">کاربران فعال (24 ساعت)</div>
+    <div class="stat-value" id="activeUsersCount">...</div>
+  </div>
 </div>
 
-
-
-
+<script>
+  (function(){
+    fetch('/admin/metrics/active-users?hours=24')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        var el = document.getElementById('activeUsersCount');
+        if (el && data && typeof data.count === 'number') { el.textContent = data.count; }
+      })
+      .catch(function(){
+        var el = document.getElementById('activeUsersCount');
+        if (el) { el.textContent = '—'; }
+      });
+  })();
+</script>

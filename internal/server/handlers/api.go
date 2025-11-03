@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"vpnpannel/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -181,6 +182,50 @@ func ApiCreateOutage(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"ok": true, "id": report.ID})
 }
 
+// ApiHeartbeat: update user's last seen (and device last seen) using JWT sent in body
+func ApiHeartbeat(c *fiber.Ctx) error {
+    var in struct {
+        Token string `json:"token"`
+        JWT   string `json:"jwt"`
+    }
+    if err := c.BodyParser(&in); err != nil {
+        return fiber.ErrBadRequest
+    }
+    tokenStr := in.Token
+    if tokenStr == "" {
+        tokenStr = in.JWT
+    }
+    if tokenStr == "" {
+        return fiber.NewError(fiber.StatusBadRequest, "token required")
+    }
+
+    claims, err := services.ParseToken(tokenStr)
+    if err != nil {
+        return fiber.ErrUnauthorized
+    }
+
+    var user models.User
+    if err := database.DB.First(&user, claims.UserID).Error; err != nil || !user.IsActive {
+        return fiber.ErrUnauthorized
+    }
+
+    now := time.Now()
+    user.LastSeenAt = &now
+    _ = database.DB.Save(&user).Error
+
+    if claims.DeviceID != "" {
+        var device models.MobileDevice
+        if err := database.DB.Where("user_id = ? AND device_id = ?", user.ID, claims.DeviceID).First(&device).Error; err != nil {
+            device = models.MobileDevice{UserID: user.ID, DeviceID: claims.DeviceID, LastSeenAt: &now}
+            _ = database.DB.Create(&device).Error
+        } else {
+            device.LastSeenAt = &now
+            _ = database.DB.Save(&device).Error
+        }
+    }
+    return c.JSON(fiber.Map{"ok": true, "ts": now})
+}
+
 type SplashItemDTO struct {
 	ID        uint   `json:"id"`
 	Name      string `json:"name"`
@@ -198,7 +243,8 @@ func ApiSPlash(c *fiber.Ctx) error {
 	resp := make([]SplashItemDTO, 0, len(splash))
 
 	for _, r := range splash {
-		resp = append(resp, SplashItemDTO{ID: uint(r.ID), Name: r.Name, Value: r.Value, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt})
+		vitem, _ := utils.DecryptValue(r.Value, int(r.ID))
+		resp = append(resp, SplashItemDTO{ID: uint(r.ID), Name: r.Name, Value: vitem, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt})
 	}
 	return c.JSON(fiber.Map{"splash": resp})
 }
