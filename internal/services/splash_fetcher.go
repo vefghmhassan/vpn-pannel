@@ -1,17 +1,27 @@
 package services
 
 import (
+	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
 	"vpnpannel/internal/config"
 	"vpnpannel/internal/database"
 	"vpnpannel/internal/models"
+	"vpnpannel/internal/utils"
 )
 
 type splashItem struct {
@@ -120,29 +130,54 @@ func fetchAndStoreSplash() {
 		return
 	}
 
-	// insert ignoring duplicates by primary key, batch with upsert-do-nothing
-	var batch []models.SplashProtocol
-	for _, it := range items {
-		batch = append(batch, models.SplashProtocol{
-			ID:       it.ID,
-			Name:     it.Name,
-			Value:    it.Value,
-			Price:    it.Price,
-			Usage:    it.Usage,
-			ServerID: it.ServerID,
-		})
-	}
-	if len(batch) == 0 {
+	// Test each decrypted item via xray before inserting
+	xrayBin, err := findXrayBinary()
+	if err != nil {
+		log.Printf("splash: xray not available: %v", err)
 		return
 	}
-	// Use GORM upsert DO NOTHING on conflict with primary key id
-	type conflictColumn struct{ Name string }
-	// inline minimal clause to avoid extra imports: build SQL explicitly via Create and ignore errors containing duplicate
-	// Fallback: insert one by one if batch fails
-	if err := database.DB.Create(&batch).Error; err != nil {
-		// fallback to per-row with duplicate tolerance
+	curlBin := findCurlBinary()
+
+	working := make([]models.SplashProtocol, 0, len(items))
+	for _, it := range items {
+		plain, err := utils.DecryptValue(it.Value, int(it.ID))
+		if err != nil {
+			continue
+		}
+		fixed := cleanAndFixDecoded(plain)
+		links := extractLinks(fixed)
+		ok := false
+		bestPing := 0
+		for _, l := range links {
+			r := runWorker(l, xrayBin, curlBin)
+			if r.OK {
+				ok = true
+				bestPing = r.PingMs
+				break
+			}
+		}
+		if ok {
+			working = append(working, models.SplashProtocol{
+				ID:       it.ID,
+				Name:     it.Name,
+				Value:    it.Value,
+				Price:    it.Price,
+				Usage:    it.Usage,
+				ServerID: it.ServerID,
+				PingMs:   bestPing,
+			})
+		}
+	}
+
+	if len(working) == 0 {
+		log.Printf("splash: no working items to insert")
+		return
+	}
+
+	if err := database.DB.Create(&working).Error; err != nil {
+		// fallback per-row with duplicate tolerance
 		inserted := 0
-		for _, rec := range batch {
+		for _, rec := range working {
 			if err2 := database.DB.Create(&rec).Error; err2 != nil {
 				lower := strings.ToLower(err2.Error())
 				if strings.Contains(lower, "duplicate") || strings.Contains(lower, "unique") || strings.Contains(lower, "constraint") {
@@ -153,11 +188,389 @@ func fetchAndStoreSplash() {
 			}
 			inserted++
 		}
-		log.Printf("splash: inserted %d/%d (fallback)", inserted, len(batch))
+		log.Printf("splash: inserted %d/%d working (fallback)", inserted, len(working))
 		return
 	}
-	// When Create succeeds as batch, rows affected equals len(batch) typically; if duplicates exist, DB driver may still report success.
-	log.Printf("splash: processed %d records (batch create attempted)", len(batch))
+	log.Printf("splash: inserted %d working items", len(working))
 }
 
 // createIfNotExists removed in favor of batch logic above
+
+// ---- Helpers copied/adapted from CLI implementation ----
+
+func findXrayBinary() (string, error) {
+	paths := []string{"/usr/local/bin/xray", "/usr/bin/xray"}
+	for _, p := range paths {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p, nil
+		}
+	}
+	return "", errors.New("xray binary not found")
+}
+
+func findCurlBinary() string {
+	if p, err := exec.LookPath("curl"); err == nil {
+		return p
+	}
+	return "/usr/bin/curl"
+}
+
+func cleanAndFixDecoded(plain string) string {
+	reLeading := regexp.MustCompile(`^[^\x20-\x7E]+`)
+	fixed := strings.TrimSpace(reLeading.ReplaceAllString(plain, ""))
+	if strings.Contains(fixed, "://") {
+		return fixed
+	}
+	if regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}@`).FindStringIndex(fixed) != nil {
+		return "vless://" + fixed
+	}
+	if regexp.MustCompile(`^[^:\s@]{1,60}@[\w\.-]+:\d+`).MatchString(fixed) {
+		return "trojan://" + fixed
+	}
+	if m := regexp.MustCompile(`vmess://[A-Za-z0-9+/=]+`).FindString(fixed); m != "" {
+		return m
+	}
+	return fixed
+}
+
+func extractLinks(text string) []string {
+	links := []string{}
+	protoList := []string{"vless://", "vmess://", "trojan://", "ss://"}
+	for _, proto := range protoList {
+		re := regexp.MustCompile(regexp.QuoteMeta(proto) + `[^\s"'<>]+`)
+		for _, m := range re.FindAllString(text, -1) {
+			links = append(links, strings.TrimSpace(m))
+		}
+	}
+	if len(links) == 0 {
+		for _, p := range protoList {
+			if strings.HasPrefix(strings.TrimSpace(text), p) {
+				links = append(links, strings.TrimSpace(text))
+				break
+			}
+		}
+	}
+	// dedupe
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, l := range links {
+		if _, ok := seen[l]; ok {
+			continue
+		}
+		seen[l] = struct{}{}
+		out = append(out, l)
+	}
+	return out
+}
+
+func getFreePort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+type workerResult struct {
+	OK         bool
+	Reason     string
+	XrayError  string
+	ConfigFile string
+	LogFile    string
+	Link       string
+	PingMs     int
+}
+
+func runWorker(link string, xrayBin string, curlBin string) workerResult {
+	port, err := getFreePort()
+	if err != nil {
+		return workerResult{OK: false, Reason: "no_port", Link: link}
+	}
+	cfg, err := buildConfigFromLink(link, port)
+	if err != nil {
+		return workerResult{OK: false, Reason: "build_err:" + err.Error(), Link: link}
+	}
+
+	cfgFile, _ := os.CreateTemp("", "xray_cfg_*.json")
+	_ = cfgFile.Close()
+	cfgPath := cfgFile.Name()
+	{
+		f, _ := os.Create(cfgPath)
+		enc := json.NewEncoder(f)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(cfg)
+		f.Close()
+	}
+
+	logFile, _ := os.CreateTemp("", "xray_log_*.log")
+	logPath := logFile.Name()
+	_ = logFile.Close()
+
+	cmd := exec.Command(xrayBin, "run", "-c", cfgPath, "-format", "json")
+	lf, _ := os.Create(logPath)
+	cmd.Stdout = lf
+	cmd.Stderr = lf
+	_ = cmd.Start()
+	defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }()
+
+	deadline := time.Now().Add(10 * time.Second)
+	ready := false
+	for time.Now().Before(deadline) {
+		c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 200*time.Millisecond)
+		if err == nil {
+			_ = c.Close()
+			ready = true
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	xlogTail := lastBytes(logPath, 1000)
+	if !ready {
+		return workerResult{OK: false, Reason: "no_socks", XrayError: xlogTail, ConfigFile: cfgPath, LogFile: logPath, Link: link}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 11*time.Second)
+	defer cancel()
+	cmdCurl := exec.CommandContext(ctx, curlBin, "--socks5-hostname", fmt.Sprintf("127.0.0.1:%d", port), "--max-time", "10", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "http://www.google.com/generate_204")
+	stdout, err := cmdCurl.StdoutPipe()
+	if err != nil {
+		return workerResult{OK: false, Reason: "curl_pipe", XrayError: xlogTail, ConfigFile: cfgPath, LogFile: logPath, Link: link}
+	}
+	start := time.Now()
+	_ = cmdCurl.Start()
+	code := ""
+	s := bufio.NewScanner(stdout)
+	for s.Scan() {
+		code += s.Text()
+	}
+	_ = cmdCurl.Wait()
+	ok := code == "204" || code == "200"
+	pingMs := int(time.Since(start) / time.Millisecond)
+	return workerResult{OK: ok, Reason: code, XrayError: xlogTail, ConfigFile: cfgPath, LogFile: logPath, Link: link, PingMs: pingMs}
+}
+
+func lastBytes(path string, max int) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	if len(b) <= max {
+		return string(b)
+	}
+	return string(b[len(b)-max:])
+}
+
+func buildConfigFromLink(link string, port int) (map[string]interface{}, error) {
+	link, _ = url.QueryUnescape(strings.TrimSpace(link))
+	if i := strings.Index(link, "#"); i >= 0 {
+		link = link[:i]
+	}
+	if strings.HasPrefix(link, "ss://") {
+		if regexp.MustCompile(`(type=|encryption=|serviceName=|authority=|security=|sni=|flow=)`).FindStringIndex(link) != nil {
+			link = "vless://" + strings.TrimPrefix(link, "ss://")
+		}
+	}
+	var outbound map[string]interface{}
+	if strings.HasPrefix(link, "vless://") {
+		re := regexp.MustCompile(`^vless://([^@]+)@([^:]+):(\d+)(?:\?(.*))?`)
+		m := re.FindStringSubmatch(link)
+		if m == nil {
+			return nil, errors.New("bad vless")
+		}
+		uid, host, portStr, q := m[1], m[2], m[3], ""
+		if len(m) >= 5 {
+			q = m[4]
+		}
+		p, _ := url.ParseQuery(q)
+		outbound = map[string]interface{}{
+			"protocol": "vless",
+			"settings": map[string]interface{}{
+				"vnext": []interface{}{map[string]interface{}{
+					"address": host,
+					"port":    atoiSafe(portStr),
+					"users":   []interface{}{map[string]interface{}{"id": uid, "encryption": "none"}},
+				}},
+			},
+			"streamSettings": map[string]interface{}{"network": firstNonEmpty(p.Get("type"), "tcp"), "security": firstNonEmpty(p.Get("security"), "none")},
+		}
+		if p.Get("security") == "reality" {
+			ss := outbound["streamSettings"].(map[string]interface{})
+			ss["realitySettings"] = map[string]interface{}{"serverName": p.Get("sni"), "publicKey": p.Get("pbk"), "shortId": p.Get("sid"), "spiderX": mustURLDecode(firstNonEmpty(p.Get("spx"), "/")), "fingerprint": firstNonEmpty(p.Get("fp"), "chrome")}
+		} else if v := p.Get("sni"); v != "" {
+			ss := outbound["streamSettings"].(map[string]interface{})
+			if _, ok := ss["tlsSettings"]; !ok {
+				ss["tlsSettings"] = map[string]interface{}{}
+			}
+			ss["tlsSettings"].(map[string]interface{})["serverName"] = v
+		}
+	} else if strings.HasPrefix(link, "vmess://") {
+		raw := strings.TrimPrefix(link, "vmess://")
+		data, err := base64.StdEncoding.DecodeString(raw + "==")
+		if err != nil {
+			return nil, fmt.Errorf("vmess base64 decode failed: %w", err)
+		}
+		var v map[string]interface{}
+		if err := json.Unmarshal(data, &v); err != nil {
+			return nil, err
+		}
+		outbound = map[string]interface{}{
+			"protocol": "vmess",
+			"settings": map[string]interface{}{
+				"vnext": []interface{}{map[string]interface{}{
+					"address": str(v["add"]),
+					"port":    atoiSafe(str(v["port"])),
+					"users":   []interface{}{map[string]interface{}{"id": str(v["id"]), "alterId": atoiSafe(strOrZero(v["aid"])), "security": "auto"}},
+				}},
+			},
+			"streamSettings": map[string]interface{}{"network": firstNonEmpty(str(v["net"]), "tcp"), "security": firstNonEmpty(str(v["tls"]), "none")},
+		}
+	} else if strings.HasPrefix(link, "trojan://") {
+		re := regexp.MustCompile(`^trojan://([^@]+)@([^:]+):(\d+)(?:\?(.*))?`)
+		m := re.FindStringSubmatch(link)
+		if m == nil {
+			return nil, errors.New("bad trojan")
+		}
+		pwd, host, portStr, q := m[1], m[2], m[3], ""
+		if len(m) >= 5 {
+			q = m[4]
+		}
+		p, _ := url.ParseQuery(q)
+		outbound = map[string]interface{}{
+			"protocol": "trojan",
+			"settings": map[string]interface{}{
+				"servers": []interface{}{map[string]interface{}{"address": host, "port": atoiSafe(portStr), "password": pwd}},
+			},
+			"streamSettings": map[string]interface{}{"network": firstNonEmpty(p.Get("type"), "tcp"), "security": firstNonEmpty(p.Get("security"), "tls")},
+		}
+		if v := p.Get("sni"); v != "" {
+			ss := outbound["streamSettings"].(map[string]interface{})
+			if _, ok := ss["tlsSettings"]; !ok {
+				ss["tlsSettings"] = map[string]interface{}{}
+			}
+			ss["tlsSettings"].(map[string]interface{})["serverName"] = v
+		}
+	} else if strings.HasPrefix(link, "ss://") {
+		cfg, err := buildShadowsocks(link)
+		if err != nil {
+			return nil, err
+		}
+		outbound = cfg
+	} else {
+		return nil, errors.New("unsupported link")
+	}
+	return map[string]interface{}{
+		"log":       map[string]interface{}{"loglevel": "none"},
+		"inbounds":  []interface{}{map[string]interface{}{"port": port, "listen": "127.0.0.1", "protocol": "socks", "settings": map[string]interface{}{"auth": "noauth", "udp": true}}},
+		"outbounds": []interface{}{outbound},
+	}, nil
+}
+
+func buildShadowsocks(link string) (map[string]interface{}, error) {
+	raw := strings.TrimPrefix(link, "ss://")
+	var method, password, host string
+	var port int
+	if strings.Contains(raw, "@") {
+		parts := strings.SplitN(raw, "@", 2)
+		creds, rest := parts[0], parts[1]
+		hostport := rest
+		if i := strings.IndexAny(hostport, "/?#"); i >= 0 {
+			hostport = hostport[:i]
+		}
+		if hp := strings.SplitN(hostport, ":", 2); len(hp) == 2 {
+			host = hp[0]
+			port = atoiSafe(hp[1])
+		}
+		if b, err := base64.StdEncoding.DecodeString(creds + "=="); err == nil {
+			s := string(b)
+			if strings.Contains(s, ":") {
+				pp := strings.SplitN(s, ":", 2)
+				method, password = strings.TrimSpace(pp[0]), strings.TrimSpace(pp[1])
+			} else {
+				method, password = "aes-128-gcm", strings.TrimSpace(s)
+			}
+		} else if strings.Contains(creds, ":") {
+			pp := strings.SplitN(creds, ":", 2)
+			method, password = pp[0], pp[1]
+		} else {
+			method, password = "aes-128-gcm", creds
+		}
+	} else {
+		basePart := raw
+		if i := strings.IndexAny(basePart, "#/"); i >= 0 {
+			basePart = basePart[:i]
+		}
+		b, err := base64.StdEncoding.DecodeString(basePart + "==")
+		if err != nil {
+			return nil, fmt.Errorf("bad ss parse: %w", err)
+		}
+		s := string(b)
+		if strings.Contains(s, "@") {
+			pp := strings.SplitN(s, "@", 2)
+			creds, rest := pp[0], pp[1]
+			if strings.Contains(creds, ":") {
+				mm := strings.SplitN(creds, ":", 2)
+				method, password = mm[0], mm[1]
+			}
+			hostport := rest
+			if i := strings.IndexAny(hostport, "/?#"); i >= 0 {
+				hostport = hostport[:i]
+			}
+			if hp := strings.SplitN(hostport, ":", 2); len(hp) == 2 {
+				host = hp[0]
+				port = atoiSafe(hp[1])
+			}
+		} else {
+			if i := strings.IndexByte(s, ':'); i >= 0 {
+				method, password = s[:i], s[i+1:]
+			}
+			host, port = "0.0.0.0", 0
+		}
+	}
+	return map[string]interface{}{
+		"protocol":       "shadowsocks",
+		"settings":       map[string]interface{}{"servers": []interface{}{map[string]interface{}{"address": host, "port": port, "method": strings.TrimSpace(method), "password": strings.TrimSpace(password), "udp": true}}},
+		"streamSettings": map[string]interface{}{"network": "tcp", "security": "none"},
+	}, nil
+}
+
+func atoiSafe(s string) int {
+	n := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			break
+		}
+		n = n*10 + int(s[i]-'0')
+	}
+	return n
+}
+
+func str(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+func strOrZero(v interface{}) string {
+	if v == nil {
+		return "0"
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func mustURLDecode(s string) string {
+	if u, err := url.QueryUnescape(s); err == nil {
+		return u
+	}
+	return s
+}
