@@ -184,46 +184,46 @@ func ApiCreateOutage(c *fiber.Ctx) error {
 
 // ApiHeartbeat: update user's last seen (and device last seen) using JWT sent in body
 func ApiHeartbeat(c *fiber.Ctx) error {
-    var in struct {
-        Token string `json:"token"`
-        JWT   string `json:"jwt"`
-    }
-    if err := c.BodyParser(&in); err != nil {
-        return fiber.ErrBadRequest
-    }
-    tokenStr := in.Token
-    if tokenStr == "" {
-        tokenStr = in.JWT
-    }
-    if tokenStr == "" {
-        return fiber.NewError(fiber.StatusBadRequest, "token required")
-    }
+	var in struct {
+		Token string `json:"token"`
+		JWT   string `json:"jwt"`
+	}
+	if err := c.BodyParser(&in); err != nil {
+		return fiber.ErrBadRequest
+	}
+	tokenStr := in.Token
+	if tokenStr == "" {
+		tokenStr = in.JWT
+	}
+	if tokenStr == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "token required")
+	}
 
-    claims, err := services.ParseToken(tokenStr)
-    if err != nil {
-        return fiber.ErrUnauthorized
-    }
+	claims, err := services.ParseToken(tokenStr)
+	if err != nil {
+		return fiber.ErrUnauthorized
+	}
 
-    var user models.User
-    if err := database.DB.First(&user, claims.UserID).Error; err != nil || !user.IsActive {
-        return fiber.ErrUnauthorized
-    }
+	var user models.User
+	if err := database.DB.First(&user, claims.UserID).Error; err != nil || !user.IsActive {
+		return fiber.ErrUnauthorized
+	}
 
-    now := time.Now()
-    user.LastSeenAt = &now
-    _ = database.DB.Save(&user).Error
+	now := time.Now()
+	user.LastSeenAt = &now
+	_ = database.DB.Save(&user).Error
 
-    if claims.DeviceID != "" {
-        var device models.MobileDevice
-        if err := database.DB.Where("user_id = ? AND device_id = ?", user.ID, claims.DeviceID).First(&device).Error; err != nil {
-            device = models.MobileDevice{UserID: user.ID, DeviceID: claims.DeviceID, LastSeenAt: &now}
-            _ = database.DB.Create(&device).Error
-        } else {
-            device.LastSeenAt = &now
-            _ = database.DB.Save(&device).Error
-        }
-    }
-    return c.JSON(fiber.Map{"ok": true, "ts": now})
+	if claims.DeviceID != "" {
+		var device models.MobileDevice
+		if err := database.DB.Where("user_id = ? AND device_id = ?", user.ID, claims.DeviceID).First(&device).Error; err != nil {
+			device = models.MobileDevice{UserID: user.ID, DeviceID: claims.DeviceID, LastSeenAt: &now}
+			_ = database.DB.Create(&device).Error
+		} else {
+			device.LastSeenAt = &now
+			_ = database.DB.Save(&device).Error
+		}
+	}
+	return c.JSON(fiber.Map{"ok": true, "ts": now})
 }
 
 type SplashItemDTO struct {
@@ -237,14 +237,29 @@ type SplashItemDTO struct {
 
 func ApiSPlash(c *fiber.Ctx) error {
 	var splash []models.SplashProtocol
-	if err := database.DB.Order("RANDOM()").Limit(10).Find(&splash).Error; err != nil {
+	// Try to fetch records created within the last 5 minutes, randomly ordered
+	threshold := time.Now().Add(-5 * time.Minute)
+	if err := database.DB.Where("created_at >= ?", threshold).Order("RANDOM()").Limit(5).Find(&splash).Error; err != nil {
 		return fiber.ErrInternalServerError
+	}
+	// Fallback: if nothing recent exists, return any random set
+	if len(splash) == 0 {
+		if err := database.DB.Order("RANDOM()").Limit(5).Find(&splash).Error; err != nil {
+			return fiber.ErrInternalServerError
+		}
 	}
 	resp := make([]SplashItemDTO, 0, len(splash))
 
 	for _, r := range splash {
 		vitem, _ := utils.DecryptValue(r.Value, int(r.ID))
-		resp = append(resp, SplashItemDTO{ID: uint(r.ID), Name: r.Name, Value: vitem, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt})
+		resp = append(resp, SplashItemDTO{
+			ID:        uint(r.ID),
+			Name:      r.Name,
+			Value:     vitem,
+			ServerID:  r.ServerID,
+			CreatedAt: r.CreatedAt,
+			UpdatedAt: r.UpdatedAt,
+		})
 	}
 	return c.JSON(fiber.Map{"splash": resp})
 }
@@ -254,65 +269,68 @@ func ApiSettings(c *fiber.Ctx) error {
 	var s models.AppSettings
 	if err := database.DB.First(&s, 1).Error; err != nil {
 		// ensure a default response even if not seeded yet
-        s = models.AppSettings{AdsEnabledInSplash: false, ShowAdsAfterSplash: false, ShowAdsOnMainPage: false, CurrentVersion: "1.0.0", ConnectedTimeoutSeconds: 15}
+		s = models.AppSettings{AdsEnabledInSplash: false, ShowAdsAfterSplash: false, ShowAdsOnMainPage: false, CurrentVersion: "1.0.0", ConnectedTimeoutSeconds: 15}
 	}
 	return c.JSON(fiber.Map{
 		"ads_enabled_in_splash": s.AdsEnabledInSplash,
 		"show_ads_after_splash": s.ShowAdsAfterSplash,
 		"show_ads_on_main_page": s.ShowAdsOnMainPage,
 		"current_version":       s.CurrentVersion,
-        "ad_unit_id":            s.AdUnitID,
-        "privacy_url":           s.PrivacyURL,
-        "connected_timeout":     s.ConnectedTimeoutSeconds,
+		"ad_unit_id":            s.AdUnitID,
+		"updated_app":           s.UpdateEnable,
+		"privacy_url":           s.PrivacyURL,
+		"connected_timeout":     s.ConnectedTimeoutSeconds,
 	})
 }
 
 // ApiCheckUpdate: client sends version_code and abi, server responds with download URL if newer
 func ApiCheckUpdate(c *fiber.Ctx) error {
-    var in struct {
-        PackageName string `json:"package_name"`
-        Package     string `json:"package"`
-        VersionCode int    `json:"version_code"`
-        ABI         string `json:"abi"`
-    }
-    if err := c.BodyParser(&in); err != nil {
-        return fiber.ErrBadRequest
-    }
-    pkg := strings.TrimSpace(in.PackageName)
-    if pkg == "" { pkg = strings.TrimSpace(in.Package) }
-    if pkg == "" {
-        return fiber.NewError(fiber.StatusBadRequest, "package_name required")
-    }
-    if in.VersionCode <= 0 {
-        return fiber.NewError(fiber.StatusBadRequest, "version_code required")
-    }
-    // find latest version with higher version_code
-    var latest models.AppVersion
-    if err := database.DB.Where("package_name = ? AND version_code > ?", pkg, in.VersionCode).Order("version_code desc").First(&latest).Error; err != nil {
-        return c.JSON(fiber.Map{"update": false})
-    }
-    // find matching build by ABI, fallback to universal
-    var build models.AppBuild
-    if in.ABI != "" {
-        if err := database.DB.Where("app_version_id = ? AND abi = ?", latest.ID, in.ABI).First(&build).Error; err != nil {
-            _ = database.DB.Where("app_version_id = ? AND abi = ?", latest.ID, "universal").First(&build).Error
-        }
-    } else {
-        _ = database.DB.Where("app_version_id = ? AND abi = ?", latest.ID, "universal").First(&build).Error
-    }
-    if build.ID == 0 {
-        // no suitable build available
-        return c.JSON(fiber.Map{"update": true, "version_code": latest.VersionCode, "version_name": latest.VersionName, "mandatory": latest.IsMandatory, "changelog": latest.Changelog, "url": nil})
-    }
-    return c.JSON(fiber.Map{
-        "update":       true,
-        "version_code": latest.VersionCode,
-        "version_name": latest.VersionName,
-        "mandatory":    latest.IsMandatory,
-        "changelog":    latest.Changelog,
-        "abi":          build.ABI,
-        "url":          build.FilePath,
-        "size":         build.FileSize,
-        "sha256":       build.Sha256,
-    })
+	var in struct {
+		PackageName string `json:"package_name"`
+		Package     string `json:"package"`
+		VersionCode int    `json:"version_code"`
+		ABI         string `json:"abi"`
+	}
+	if err := c.BodyParser(&in); err != nil {
+		return fiber.ErrBadRequest
+	}
+	pkg := strings.TrimSpace(in.PackageName)
+	if pkg == "" {
+		pkg = strings.TrimSpace(in.Package)
+	}
+	if pkg == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "package_name required")
+	}
+	if in.VersionCode <= 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "version_code required")
+	}
+	// find latest version with higher version_code
+	var latest models.AppVersion
+	if err := database.DB.Where("package_name = ? AND version_code > ?", pkg, in.VersionCode).Order("version_code desc").First(&latest).Error; err != nil {
+		return c.JSON(fiber.Map{"update": false})
+	}
+	// find matching build by ABI, fallback to universal
+	var build models.AppBuild
+	if in.ABI != "" {
+		if err := database.DB.Where("app_version_id = ? AND abi = ?", latest.ID, in.ABI).First(&build).Error; err != nil {
+			_ = database.DB.Where("app_version_id = ? AND abi = ?", latest.ID, "universal").First(&build).Error
+		}
+	} else {
+		_ = database.DB.Where("app_version_id = ? AND abi = ?", latest.ID, "universal").First(&build).Error
+	}
+	if build.ID == 0 {
+		// no suitable build available
+		return c.JSON(fiber.Map{"update": true, "version_code": latest.VersionCode, "version_name": latest.VersionName, "mandatory": latest.IsMandatory, "changelog": latest.Changelog, "url": nil})
+	}
+	return c.JSON(fiber.Map{
+		"update":       true,
+		"version_code": latest.VersionCode,
+		"version_name": latest.VersionName,
+		"mandatory":    latest.IsMandatory,
+		"changelog":    latest.Changelog,
+		"abi":          build.ABI,
+		"url":          build.FilePath,
+		"size":         build.FileSize,
+		"sha256":       build.Sha256,
+	})
 }

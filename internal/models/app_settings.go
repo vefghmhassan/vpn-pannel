@@ -15,6 +15,7 @@ type AppSettings struct {
 	ShowAdsAfterSplash bool `gorm:"not null;default:false" json:"showAdsAfterSplash"`
 	// Whether to show ads on the application's main page
 	ShowAdsOnMainPage bool `gorm:"not null;default:false" json:"showAdsOnMainPage"`
+	UpdateEnable      bool `gorm:"not null;default:true" json:"updateEnable"`
 	// Current application version string (e.g., 1.0.0)
 	CurrentVersion string `gorm:"size:32;not null;default:'1.0.0'" json:"currentVersion"`
 

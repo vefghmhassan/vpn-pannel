@@ -18,6 +18,12 @@
       <input type="checkbox" name="show_ads_after_splash" class="toggle toggle-primary" {{ if .s.ShowAdsAfterSplash }}checked{{ end }} />
     </label>
 
+      <label class="form-control cursor-pointer">
+          <div class="label">
+              <span class="label-text">نمایش اپدیت در برنامه </span>
+          </div>
+          <input type="checkbox" name="update_enable" class="toggle toggle-primary" {{ if .s.UpdateEnable }}checked{{ end }} />
+      </label>
     <label class="form-control cursor-pointer">
       <div class="label">
         <span class="label-text">نمایش تبلیغات در صفحه اصلی</span>

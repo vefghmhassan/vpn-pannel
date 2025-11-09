@@ -1,10 +1,11 @@
 package handlers
 
 import (
-    "strconv"
-    "github.com/gofiber/fiber/v2"
-    "vpnpannel/internal/database"
-    "vpnpannel/internal/models"
+	"strconv"
+	"vpnpannel/internal/database"
+	"vpnpannel/internal/models"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 func SettingsPage(c *fiber.Ctx) error {
@@ -29,17 +30,24 @@ func SettingsUpdate(c *fiber.Ctx) error {
 
 	// checkboxes: presence means true
 	s.AdsEnabledInSplash = c.FormValue("ads_enabled_in_splash") != ""
+	s.UpdateEnable = c.FormValue("update_enable") != ""
 	s.ShowAdsAfterSplash = c.FormValue("show_ads_after_splash") != ""
 	s.ShowAdsOnMainPage = c.FormValue("show_ads_on_main_page") != ""
 	if v := c.FormValue("current_version"); v != "" {
 		s.CurrentVersion = v
 	}
 
-    if v := c.FormValue("ad_unit_id"); v != "" { s.AdUnitID = v }
-    if v := c.FormValue("privacy_url"); v != "" { s.PrivacyURL = v }
-    if v := c.FormValue("connected_timeout"); v != "" {
-        if n, err := strconv.Atoi(v); err == nil && n > 0 { s.ConnectedTimeoutSeconds = n }
-    }
+	if v := c.FormValue("ad_unit_id"); v != "" {
+		s.AdUnitID = v
+	}
+	if v := c.FormValue("privacy_url"); v != "" {
+		s.PrivacyURL = v
+	}
+	if v := c.FormValue("connected_timeout"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			s.ConnectedTimeoutSeconds = n
+		}
+	}
 
 	if err := database.DB.Save(&s).Error; err != nil {
 		return fiber.ErrInternalServerError
