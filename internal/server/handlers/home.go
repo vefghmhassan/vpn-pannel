@@ -5,5 +5,5 @@ import (
 )
 
 func HomePage(c *fiber.Ctx) error {
-	return c.Render("home/index", fiber.Map{})
+	return c.Render("home/index", nil)
 }
