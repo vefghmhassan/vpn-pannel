@@ -30,7 +30,7 @@ func RegisterRoutes(app *fiber.App) {
 	admin.Post("/app/new", handlers.AppCreate)
 	// Settings
 	admin.Get("/settings", handlers.SettingsPage)
-	admin.Get("/", handlers.HomePage)
+	app.Get("/", handlers.HomePage)
 	admin.Post("/settings", handlers.SettingsUpdate)
 	// Users
 	admin.Get("/users", handlers.UsersList)
