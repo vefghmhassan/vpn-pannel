@@ -10,15 +10,15 @@ import (
 )
 
 func RegisterRoutes(app *fiber.App) {
-    // Serve uploaded files
-    app.Static("/uploads", "./uploads")
+	// Serve uploaded files
+	app.Static("/uploads", "./uploads")
 	// Auth
 	app.Get("/login", handlers.LoginPage)
 	app.Post("/login", handlers.LoginSubmit)
 	app.Get("/logout", handlers.Logout)
 
 	// Dashboard
-	app.Get("/", middleware.AuthRequired("SUPER_ADMIN", "ADMIN", "SUPPORT"), handlers.Dashboard)
+	app.Get("/admin", middleware.AuthRequired("SUPER_ADMIN", "ADMIN", "SUPPORT"), handlers.Dashboard)
 
 	// Admin area
 	admin := app.Group("/admin", middleware.AuthRequired("SUPER_ADMIN", "ADMIN", "SUPPORT"))
@@ -30,6 +30,7 @@ func RegisterRoutes(app *fiber.App) {
 	admin.Post("/app/new", handlers.AppCreate)
 	// Settings
 	admin.Get("/settings", handlers.SettingsPage)
+	admin.Get("/", handlers.HomePage)
 	admin.Post("/settings", handlers.SettingsUpdate)
 	// Users
 	admin.Get("/users", handlers.UsersList)

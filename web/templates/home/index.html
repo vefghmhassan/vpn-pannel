@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NYX VPN – Free, Fast & No-Log VPN</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="NYX VPN – Free, high-speed and no-logs VPN with premium UI and secure servers.">
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+    :root {
+      --bg: #020617;
+      --bg-alt: #02091c;
+      --primary: #6366f1;
+      --primary-soft: rgba(99,102,241,0.4);
+      --accent: #22d3ee;
+      --accent-soft: rgba(34,211,238,0.45);
+      --success: #22c55e;
+      --danger: #f97373;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --card-bg: rgba(15,23,42,0.88);
+      --border-soft: rgba(148,163,184,0.28);
+      --radius-xl: 22px;
+      --shadow-deep: 0 26px 70px rgba(15,23,42,0.95);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: radial-gradient(circle at top, #020617 0, #000 55%);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* === BACKGROUND 3D WAVES / BLOBS === */
+    .bg-layer {
+      position: fixed;
+      inset: -120px;
+      z-index: -2;
+      background:
+        radial-gradient(circle at 10% 20%, #1f2937 0, transparent 55%),
+        radial-gradient(circle at 80% 0, #0b1120 0, transparent 55%),
+        radial-gradient(circle at 0 100%, #020617 0, #000 70%);
+    }
+
+    .bg-shape {
+      position: fixed;
+      border-radius: 999px;
+      filter: blur(50px);
+      opacity: 0.7;
+      mix-blend-mode: screen;
+      pointer-events: none;
+      z-index: -1;
+      transition: transform 0.6s ease-out;
+    }
+    .bg-shape-1 {
+      width: 380px;
+      height: 380px;
+      background: radial-gradient(circle, rgba(37,99,235,0.9), transparent 60%);
+      top: -120px;
+      left: -80px;
+      animation: float-1 18s ease-in-out infinite alternate;
+    }
+    .bg-shape-2 {
+      width: 420px;
+      height: 420px;
+      background: radial-gradient(circle, rgba(34,211,238,0.9), transparent 60%);
+      bottom: -140px;
+      right: -80px;
+      animation: float-2 22s ease-in-out infinite alternate;
+    }
+    .bg-shape-3 {
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(circle, rgba(56,189,248,0.65), transparent 60%);
+      top: 40%;
+      left: 55%;
+      transform: translateX(-50%);
+      animation: float-3 26s ease-in-out infinite alternate;
+    }
+
+    @keyframes float-1 {
+      0% { transform: translate3d(0,0,0) rotate(0deg); }
+      100% { transform: translate3d(70px,120px,0) rotate(6deg); }
+    }
+    @keyframes float-2 {
+      0% { transform: translate3d(0,0,0) rotate(0deg); }
+      100% { transform: translate3d(-100px,-120px,0) rotate(-8deg); }
+    }
+    @keyframes float-3 {
+      0% { transform: translate3d(-20px,0,0); }
+      100% { transform: translate3d(40px,-40px,0); }
+    }
+
+    /* === LAYOUT === */
+    .wrapper {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 18px 18px 60px;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(18px);
+      background: linear-gradient(to bottom, rgba(15,23,42,0.96), transparent);
+      border-bottom: 1px solid rgba(15,23,42,0.8);
+    }
+
+    .nav-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 10px 18px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* LOGO – استفاده از لوگوی خودت: فایل PNG رو جایگزین کن */
+    .logo-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: radial-gradient(circle at 25% 15%, #e5e7eb 0, #22d3ee 18%, #6366f1 50%, #020617 100%);
+      box-shadow: 0 0 28px rgba(56,189,248,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .logo-mark::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(15,23,42,0.75), transparent);
+      opacity: 0.92;
+    }
+
+    .logo-mark img {
+      width: 130%;
+      transform: translateY(1px);
+      filter: drop-shadow(0 0 16px rgba(15,23,42,0.8));
+    }
+
+    .logo-text-main {
+      font-size: 18px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .logo-text-sub {
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: -3px;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      font-size: 14px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .nav-link {
+      position: relative;
+      padding: 4px 0;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.18s ease-out;
+      font-size: 13px;
+    }
+    .nav-link::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -4px;
+      width: 0;
+      height: 2px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--primary));
+      transition: width 0.18s ease-out;
+    }
+    .nav-link:hover {
+      color: var(--text);
+    }
+    .nav-link:hover::after {
+      width: 100%;
+    }
+
+    .nav-cta {
+      padding: 7px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.5);
+      background: radial-gradient(circle at top left, rgba(37,99,235,0.65), rgba(15,23,42,0.96));
+      color: #e5e7eb;
+      text-decoration: none;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 12px 30px rgba(15,23,42,0.9);
+      transition: all 0.18s ease-out;
+    }
+    .nav-cta span {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(226,232,240,0.7);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+    .nav-cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 18px 40px rgba(15,23,42,1);
+      border-color: rgba(226,232,240,0.7);
+    }
+
+    .nav-toggle {
+      display: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.6);
+      background: rgba(15,23,42,0.96);
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .nav-toggle span,
+    .nav-toggle span::before,
+    .nav-toggle span::after {
+      position: relative;
+      display: block;
+      width: 16px;
+      height: 2px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      transition: all 0.18s ease-out;
+    }
+    .nav-toggle span::before,
+    .nav-toggle span::after {
+      content: "";
+      position: absolute;
+      left: 0;
+    }
+    .nav-toggle span::before { top: -5px; }
+    .nav-toggle span::after { top: 5px; }
+    .nav-toggle.active span {
+      background: transparent;
+    }
+    .nav-toggle.active span::before {
+      transform: translateY(5px) rotate(45deg);
+    }
+    .nav-toggle.active span::after {
+      transform: translateY(-5px) rotate(-45deg);
+    }
+
+    main {
+      padding-top: 32px;
+    }
+
+    /* === HERO === */
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0,1.4fr) minmax(0,1.1fr);
+      gap: 32px;
+      align-items: center;
+      padding: 32px 0 26px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px 4px 4px;
+      border-radius: 999px;
+      border: 1px solid rgba(56,189,248,0.6);
+      background: rgba(15,23,42,0.95);
+      box-shadow: 0 0 26px rgba(56,189,248,0.55);
+      margin-bottom: 12px;
+    }
+    .hero-badge-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 25% 25%, #e5e7eb 0, #22d3ee 30%, #6366f1 70%, #020617 100%);
+      box-shadow: 0 0 18px rgba(56,189,248,0.9);
+    }
+    .hero-badge span {
+      font-size: 10px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+    }
+
+    .hero-title {
+      font-size: clamp(32px, 4.1vw, 42px);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .hero-title span {
+      background: linear-gradient(120deg, #a5b4fc, #22d3ee, #22c55e);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 14px;
+      color: var(--muted);
+      max-width: 480px;
+      margin-top: 10px;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .hero-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.4);
+      background: rgba(15,23,42,0.96);
+    }
+    .hero-meta .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(34,197,94,0.9);
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 14px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.18s ease-out;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #f9fafb;
+      box-shadow: 0 16px 42px rgba(15,23,42,0.95);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px) scale(1.01);
+      box-shadow: 0 22px 58px rgba(15,23,42,1);
+    }
+    .btn-ghost {
+      background: rgba(15,23,42,0.96);
+      border-color: rgba(148,163,184,0.5);
+      color: var(--text);
+    }
+    .btn-ghost:hover {
+      border-color: rgba(226,232,240,0.7);
+    }
+    .btn-tag {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    .btn-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(226,232,240,0.7);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    .hero-caption {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    /* === HERO PHONE MOCKUP === */
+    .hero-visual {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 1200px;
+    }
+
+    .phone {
+      width: 290px;
+      border-radius: 36px;
+      padding: 18px 14px 20px;
+      background: radial-gradient(circle at 10% 0, #020617 0, #020617 30%, #000 100%);
+      border: 1px solid rgba(148,163,184,0.4);
+      box-shadow: var(--shadow-deep);
+      position: relative;
+      transform: rotateY(-14deg) rotateX(8deg);
+      transform-style: preserve-3d;
+      overflow: hidden;
+    }
+
+    .phone-notch {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 110px;
+      height: 16px;
+      border-radius: 0 0 16px 16px;
+      background: #020617;
+    }
+
+    .phone-inner {
+      margin-top: 24px;
+      border-radius: 28px;
+      padding: 18px 16px 16px;
+      background: radial-gradient(circle at 20% 0, rgba(15,23,42,0.2), rgba(15,23,42,0.98)),
+                  radial-gradient(circle at 80% 100%, rgba(56,189,248,0.22), rgba(15,23,42,1));
+      border: 1px solid rgba(30,64,175,0.8);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .phone-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .circle-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 6px 0 10px;
+    }
+
+    .connect-circle {
+      width: 128px;
+      height: 128px;
+      border-radius: 999px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 30% 20%, #1e293b 0, #020617 75%);
+      box-shadow: 0 0 0 1px rgba(15,23,42,1), 0 0 32px rgba(56,189,248,0.25);
+    }
+
+    .connect-ring {
+      position: absolute;
+      inset: -3px;
+      border-radius: inherit;
+      background:
+        conic-gradient(from 210deg,
+          rgba(34,197,94,0.1) 0deg,
+          rgba(34,197,94,0.85) 80deg,
+          rgba(234,179,8,0.85) 160deg,
+          rgba(248,113,113,0.9) 220deg,
+          rgba(15,23,42,1) 310deg,
+          rgba(34,197,94,0.75) 360deg);
+      filter: blur(0.3px);
+      animation: ring-rotate 14s linear infinite;
+      opacity: 0.96;
+    }
+
+    @keyframes ring-rotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .connect-core {
+      position: relative;
+      z-index: 2;
+      width: 86px;
+      height: 86px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, #020617 0, #020617 40%, #111827 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 24px rgba(34,197,94,0.55);
+    }
+
+    .connect-core-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 2px solid rgba(148,163,184,0.9);
+      position: relative;
+      margin-bottom: 6px;
+    }
+    .connect-core-icon::before {
+      content: "";
+      position: absolute;
+      inset: 5px;
+      border-radius: inherit;
+      background: radial-gradient(circle, #22c55e, transparent 70%);
+      opacity: 0.9;
+    }
+
+    .connect-core span {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #e5e7eb;
+    }
+
+    .phone-status {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .phone-status strong {
+      color: #bbf7d0;
+    }
+
+    .metrics-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 10px;
+    }
+
+    .metric {
+      flex: 1;
+      border-radius: 12px;
+      padding: 8px 10px;
+      background: rgba(15,23,42,0.95);
+      border: 1px solid rgba(51,65,85,0.8);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .metric-label {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+    .metric-value {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .server-pill {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.6);
+      background: rgba(15,23,42,0.96);
+      font-size: 10px;
+      color: #e5e7eb;
+    }
+    .flag-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #facc15 0, #ef4444 40%, #1d4ed8 85%);
+      box-shadow: 0 0 10px rgba(56,189,248,0.4);
+    }
+
+    .badge-floating {
+      position: absolute;
+      top: 28px;
+      right: -4px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 10px;
+      background: rgba(15,23,42,0.98);
+      border: 1px solid rgba(56,189,248,0.85);
+      box-shadow: 0 0 20px rgba(56,189,248,0.8);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      animation: float-badge 5.5s ease-in-out infinite;
+    }
+
+    @keyframes float-badge {
+      0%,100% { transform: translateY(0); opacity: 1; }
+      50% { transform: translateY(-5px); opacity: 0.9; }
+    }
+
+    /* === SHARED SECTION STYLES === */
+    section {
+      margin-top: 46px;
+    }
+
+    .section-header {
+      margin-bottom: 18px;
+    }
+    .section-eyebrow {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.24em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .section-title {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .section-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+      max-width: 460px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 18px;
+    }
+
+    .card {
+      position: relative;
+      padding: 16px 16px 14px;
+      border-radius: var(--radius-xl);
+      background: var(--card-bg);
+      border: 1px solid var(--border-soft);
+      box-shadow: 0 20px 52px rgba(15,23,42,0.9);
+      overflow: hidden;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top left, rgba(79,70,229,0.32), transparent 55%);
+      opacity: 0;
+      transition: opacity 0.2s ease-out;
+    }
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    .card-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.96);
+      border: 1px solid rgba(148,163,184,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .card-text {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .card-tag {
+      margin-top: 8px;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(129,140,248,0.96);
+    }
+
+    /* === TECHNOLOGY / STATS === */
+    .row-2 {
+      display: grid;
+      grid-template-columns: minmax(0,1.15fr) minmax(0,1fr);
+      gap: 20px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2,minmax(0,1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .stat-card {
+      padding: 12px 12px 10px;
+      border-radius: 16px;
+      border: 1px solid rgba(55,65,81,0.8);
+      background: radial-gradient(circle at top, rgba(15,23,42,0.96), rgba(15,23,42,1));
+      font-size: 11px;
+    }
+    .stat-label {
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .stat-hint {
+      font-size: 10px;
+      color: rgba(148,163,184,0.9);
+      margin-top: 2px;
+    }
+
+    .tech-card {
+      padding: 16px;
+      border-radius: 18px;
+      background: radial-gradient(circle at top, rgba(56,189,248,0.35), rgba(15,23,42,1));
+      border: 1px solid rgba(56,189,248,0.75);
+      box-shadow: var(--shadow-deep);
+      font-size: 12px;
+      color: #e5e7eb;
+    }
+
+    .tech-pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .tech-pill {
+      font-size: 11px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.96);
+      border: 1px solid rgba(226,232,240,0.2);
+    }
+
+    /* === SERVERS STRIP === */
+    .server-strip {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(55,65,81,0.85);
+      background: rgba(15,23,42,0.96);
+      overflow-x: auto;
+      display: flex;
+      gap: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(148,163,184,0.7) transparent;
+    }
+    .server-chip {
+      min-width: 140px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(75,85,99,0.9);
+      background: radial-gradient(circle at 20% 0, rgba(37,99,235,0.4), rgba(15,23,42,1));
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .server-chip-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+    .server-name {
+      font-weight: 500;
+    }
+    .ping {
+      font-size: 11px;
+      color: #bbf7d0;
+    }
+    .server-detail {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    /* === FAQ === */
+    .faq-list {
+      padding: 10px 14px;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border-soft);
+      background: radial-gradient(circle at top, rgba(15,23,42,0.96), rgba(15,23,42,1));
+      box-shadow: 0 20px 40px rgba(15,23,42,1);
+    }
+
+    .faq-item {
+      border-bottom: 1px solid rgba(55,65,81,0.8);
+    }
+    .faq-item:last-child {
+      border-bottom: none;
+    }
+    .faq-question {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 2px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .faq-toggle {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.8);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: rgba(148,163,184,0.9);
+    }
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: all 0.2s ease-out;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 0 2px;
+    }
+    .faq-item.open .faq-answer {
+      max-height: 260px;
+      opacity: 1;
+      padding-bottom: 8px;
+    }
+    .faq-item.open .faq-toggle {
+      background: rgba(148,163,184,0.16);
+    }
+
+    /* === DOWNLOAD CTA STRIP === */
+    .download-strip {
+      margin-top: 40px;
+      padding: 16px 16px 14px;
+      border-radius: 20px;
+      background: linear-gradient(115deg, rgba(37,99,235,0.98), rgba(56,189,248,0.98));
+      box-shadow: 0 24px 70px rgba(15,23,42,1);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      color: #f9fafb;
+    }
+    .download-main {
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .download-sub {
+      font-size: 11px;
+      opacity: 0.9;
+    }
+    .download-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .store-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(248,250,252,0.65);
+      background: rgba(15,23,42,0.98);
+      font-size: 12px;
+      color: #e5e7eb;
+      text-decoration: none;
+      transition: all 0.18s ease-out;
+    }
+    .store-chip:hover:not(.chip-soon) {
+      transform: translateY(-1px);
+      border-color: #f9fafb;
+    }
+    .chip-soon {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .store-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.9);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    footer {
+      margin-top: 26px;
+      padding: 16px 0 4px;
+      border-top: 1px solid rgba(15,23,42,0.96);
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .footer-links a {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px dashed transparent;
+      padding-bottom: 1px;
+      transition: all 0.18s ease-out;
+    }
+    .footer-links a:hover {
+      color: #e5e7eb;
+      border-color: rgba(148,163,184,0.7);
+    }
+
+    /* === ANIMATION ON SCROLL === */
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+    }
+    .reveal.in-view {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 900px) {
+      .hero {
+        grid-template-columns: minmax(0,1fr);
+      }
+      .hero-visual {
+        order: -1;
+      }
+      .row-2 {
+        grid-template-columns: minmax(0,1fr);
+      }
+      .grid-3 {
+        grid-template-columns: repeat(2,minmax(0,1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .wrapper {
+        padding-inline: 16px;
+      }
+      .nav-links {
+        position: absolute;
+        inset: 54px 16px auto;
+        border-radius: 16px;
+        border: 1px solid rgba(148,163,184,0.45);
+        background: rgba(15,23,42,0.98);
+        flex-direction: column;
+        padding: 8px 10px;
+        display: none;
+      }
+      .nav-links.open {
+        display: flex;
+      }
+      .nav-toggle {
+        display: inline-flex;
+      }
+      nav {
+        margin-left: auto;
+      }
+      .grid-3 {
+        grid-template-columns: minmax(0,1fr);
+      }
+      .phone {
+        transform: none;
+      }
+      .download-strip {
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- background -->
+  <div class="bg-layer"></div>
+  <div class="bg-shape bg-shape-1"></div>
+  <div class="bg-shape bg-shape-2"></div>
+  <div class="bg-shape bg-shape-3"></div>
+
+  <header>
+    <div class="nav-inner">
+      <div class="logo-row">
+        <div class="logo-mark">
+          <!-- لوگوی خودت رو به اسم logo-nyxvpn.png کنار همین فایل بذار -->
+          <img src="logo-nyxvpn.png" alt="NYX VPN logo">
+        </div>
+        <div>
+          <div class="logo-text-main">NYX VPN</div>
+          <div class="logo-text-sub">PRIVATE NETWORK</div>
+        </div>
+      </div>
+
+      <nav>
+        <button class="nav-toggle" aria-label="Toggle navigation">
+          <span></span>
+        </button>
+        <div class="nav-links">
+          <a href="#features" class="nav-link">Features</a>
+          <a href="#technology" class="nav-link">Technology</a>
+          <a href="#servers" class="nav-link">Servers</a>
+          <a href="#download" class="nav-link">Download</a>
+          <a href="#faq" class="nav-link">FAQ</a>
+          <a href="#download" class="nav-cta">
+            Get NYX VPN
+            <span>↓</span>
+          </a>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <div class="wrapper">
+    <main>
+      <!-- HERO -->
+      <section class="hero">
+        <div class="reveal">
+          <div class="hero-badge">
+            <div class="hero-badge-dot"></div>
+            <span>Secure internet · One tap</span>
+          </div>
+          <h1 class="hero-title">
+            Feel premium internet<br />
+            with <span>NYX VPN</span>
+          </h1>
+          <p class="hero-subtitle">
+            Free, fast and secure VPN designed with a premium mobile experience.
+            High-speed servers and a strict no-logs approach keep your connection private—always.
+          </p>
+
+          <div class="hero-meta">
+            <span><div class="dot"></div> No logs stored</span>
+            <span>High-speed global servers</span>
+            <span>Free to use</span>
+          </div>
+
+          <div class="hero-actions">
+            <!-- لینک گوگل پلی خودت رو بعداً جایگزین کن -->
+            <a href="https://play.google.com/store/apps/details?id=com.yournyxvpn"
+               class="btn btn-primary">
+              Download on Google Play
+              <span class="btn-icon">▶</span>
+            </a>
+            <a class="btn btn-ghost" aria-disabled="true">
+              App Store · Coming Soon
+            </a>
+          </div>
+
+          <div class="hero-caption">
+            Works on Wi-Fi & mobile data · One-tap connect · Modern encryption protocols
+          </div>
+        </div>
+
+        <!-- PHONE MOCKUP -->
+        <div class="hero-visual reveal">
+          <div class="phone">
+            <div class="phone-notch"></div>
+            <div class="badge-floating">
+              <span style="font-size:11px;">★</span>
+              <span>Premium UI</span>
+            </div>
+            <div class="phone-inner">
+              <div class="phone-label">Connection status</div>
+
+              <div class="circle-wrap">
+                <div class="connect-circle">
+                  <div class="connect-ring"></div>
+                  <div class="connect-core">
+                    <div class="connect-core-icon"></div>
+                    <span>Connected</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="phone-status">
+                Successfully connected · <strong>Germany · High speed</strong>
+              </div>
+
+              <div class="metrics-row">
+                <div class="metric">
+                  <div class="metric-label">Download</div>
+                  <div class="metric-value">110 Mbps</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Upload</div>
+                  <div class="metric-value">32 Mbps</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Latency</div>
+                  <div class="metric-value">28 ms</div>
+                </div>
+              </div>
+
+              <div class="server-pill">
+                <div class="flag-dot"></div>
+                <div>Germany · Optimized route</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FEATURES -->
+      <section id="features" class="reveal">
+        <div class="section-header">
+          <div class="section-eyebrow">Features</div>
+          <h2 class="section-title">Why people choose NYX VPN</h2>
+          <p class="section-subtitle">
+            Built for everyday users who want a premium app experience and serious privacy—without paying a subscription.
+          </p>
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-icon">🔐</div>
+            <div class="card-title">No-log privacy</div>
+            <p class="card-text">
+              We don’t store your browsing history, IP address or traffic content.
+              Your connection is encrypted and your activity remains private.
+            </p>
+            <div class="card-tag">Zero logs</div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">⚡</div>
+            <div class="card-title">High-speed routes</div>
+            <p class="card-text">
+              Smart routing connects you to the fastest available server for streaming,
+              gaming and downloads with consistently low latency.
+            </p>
+            <div class="card-tag">Low ping</div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">🌍</div>
+            <div class="card-title">Global locations</div>
+            <p class="card-text">
+              Multiple server locations help you bypass geo-blocks, access content and stay secure wherever you are.
+            </p>
+            <div class="card-tag">Multi region</div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">🛡️</div>
+            <div class="card-title">Modern encryption</div>
+            <p class="card-text">
+              Uses modern VPN protocols and secure configurations to keep your data protected on any network,
+              including public Wi-Fi.
+            </p>
+            <div class="card-tag">Secure tunnel</div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">🎨</div>
+            <div class="card-title">Premium UI</div>
+            <p class="card-text">
+              The same dark, neon UI you see in the app—smooth animations, clear states and a one-tap connect button.
+            </p>
+            <div class="card-tag">App-first design</div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">💸</div>
+            <div class="card-title">Free to use</div>
+            <p class="card-text">
+              Connect to secure servers without subscriptions or hidden fees.
+              NYX VPN is free to download and simple to start using.
+            </p>
+            <div class="card-tag">Free access</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TECHNOLOGY & STATS -->
+      <section id="technology" class="reveal">
+        <div class="row-2">
+          <div>
+            <div class="section-header">
+              <div class="section-eyebrow">Technology</div>
+              <h2 class="section-title">Built for speed, tuned for privacy</h2>
+              <p class="section-subtitle">
+                Under the minimal interface, NYX VPN uses optimized server routes and modern encryption
+                so you can browse, stream and game with confidence.
+              </p>
+            </div>
+
+            <div class="stat-grid">
+              <div class="stat-card">
+                <div class="stat-label">Average latency</div>
+                <div class="stat-value">&lt; 40 ms</div>
+                <div class="stat-hint">Optimized paths for real-time usage.</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Uptime</div>
+                <div class="stat-value">99.9%</div>
+                <div class="stat-hint">Always-on servers ready when you are.</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Devices</div>
+                <div class="stat-value">3+</div>
+                <div class="stat-hint">Use NYX VPN on multiple Android devices.</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Traffic</div>
+                <div class="stat-value">Unlimited</div>
+                <div class="stat-hint">No bandwidth or time limits.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tech-card">
+            <strong>Under the hood.</strong>
+            <p style="margin-top:6px;">
+              NYX VPN uses secure configurations and optimized tunnels to keep your data encrypted from your device
+              to our edge servers. We focus on a clean app experience while handling the complex networking behind the scenes.
+            </p>
+            <div class="tech-pill-row">
+              <div class="tech-pill">Modern VPN protocols</div>
+              <div class="tech-pill">Encrypted DNS</div>
+              <div class="tech-pill">Smart routing</div>
+              <div class="tech-pill">Server health checks</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SERVERS -->
+      <section id="servers" class="reveal">
+        <div class="section-header">
+          <div class="section-eyebrow">Servers</div>
+          <h2 class="section-title">Fast routes across key locations</h2>
+          <p class="section-subtitle">
+            Connect to optimized servers in popular regions. NYX VPN automatically picks the fastest option for you.
+          </p>
+        </div>
+
+        <div class="server-strip">
+          <div class="server-chip">
+            <div class="server-chip-head">
+              <span class="server-name">Germany · Premium</span>
+              <span class="ping">22 ms</span>
+            </div>
+            <div class="server-detail">Great for streaming & everyday browsing.</div>
+          </div>
+
+          <div class="server-chip">
+            <div class="server-chip-head">
+              <span class="server-name">Netherlands</span>
+              <span class="ping">35 ms</span>
+            </div>
+            <div class="server-detail">Balanced speed & privacy routing.</div>
+          </div>
+
+          <div class="server-chip">
+            <div class="server-chip-head">
+              <span class="server-name">France</span>
+              <span class="ping">40 ms</span>
+            </div>
+            <div class="server-detail">Stable performance for daily use.</div>
+          </div>
+
+          <div class="server-chip">
+            <div class="server-chip-head">
+              <span class="server-name">United Kingdom</span>
+              <span class="ping">44 ms</span>
+            </div>
+            <div class="server-detail">Good mix of speed and reach.</div>
+          </div>
+
+          <div class="server-chip">
+            <div class="server-chip-head">
+              <span class="server-name">US · East</span>
+              <span class="ping">90 ms</span>
+            </div>
+            <div class="server-detail">Access international content securely.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="reveal">
+        <div class="section-header">
+          <div class="section-eyebrow">FAQ</div>
+          <h2 class="section-title">Frequently asked questions</h2>
+          <p class="section-subtitle">
+            Here are some quick answers. For more details, check the privacy policy or contact us directly.
+          </p>
+        </div>
+
+        <div class="faq-list">
+          <div class="faq-item open">
+            <div class="faq-question">
+              <span>Is NYX VPN really free?</span>
+              <div class="faq-toggle">−</div>
+            </div>
+            <div class="faq-answer">
+              Yes. NYX VPN is free to download and use. You can connect to our high-speed servers without any subscriptions
+              or time limits.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-question">
+              <span>Do you keep logs of my activity?</span>
+              <div class="faq-toggle">+</div>
+            </div>
+            <div class="faq-answer">
+              We apply a strict no-logs approach. We don’t store your browsing history, the content you access, or
+              your traffic data. For more details, please read our Privacy Policy.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-question">
+              <span>Can I use NYX VPN for streaming and gaming?</span>
+              <div class="faq-toggle">+</div>
+            </div>
+            <div class="faq-answer">
+              Yes. NYX VPN is optimized for fast, stable connections. Our server routes are tuned for streaming, gaming
+              and everyday browsing with low latency whenever possible.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-question">
+              <span>Which platforms are supported?</span>
+              <div class="faq-toggle">+</div>
+            </div>
+            <div class="faq-answer">
+              NYX VPN is currently available for Android devices. An iOS version for the App Store is planned for the future.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DOWNLOAD CTA -->
+      <section id="download" class="reveal">
+        <div class="download-strip">
+          <div>
+            <div class="download-main">Ready to try NYX VPN?</div>
+            <div class="download-sub">
+              Download the Android app and secure your connection in one tap. Free, fast and no-log by design.
+            </div>
+          </div>
+
+          <div class="download-actions">
+            <a href="https://play.google.com/store/apps/details?id=com.yournyxvpn"
+               class="store-chip">
+              <span class="store-icon">▶</span>
+              <span>Get it on Google Play</span>
+            </a>
+
+            <span class="store-chip chip-soon">
+              <span class="store-icon"></span>
+              <span>App Store · Coming Soon</span>
+            </span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div>© <span id="year"></span> NYX VPN. All rights reserved.</div>
+      <div class="footer-links">
+        <a href="https://sites.google.com/view/nyxvpn/home" target="_blank">Privacy Policy</a>
+        <a href="mailto:support@nyxvpn.example">Contact</a>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // سال
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    // موبایل منو
+    const navToggle = document.querySelector(".nav-toggle");
+    const navLinks = document.querySelector(".nav-links");
+    navToggle.addEventListener("click", () => {
+      navToggle.classList.toggle("active");
+      navLinks.classList.toggle("open");
+    });
+
+    // FAQ آکاردئون
+    document.querySelectorAll(".faq-item").forEach((item) => {
+      const q = item.querySelector(".faq-question");
+      q.addEventListener("click", () => {
+        const isOpen = item.classList.contains("open");
+        document.querySelectorAll(".faq-item").forEach((i) => i.classList.remove("open"));
+        if (!isOpen) item.classList.add("open");
+        document.querySelectorAll(".faq-item").forEach((i) => {
+          const toggle = i.querySelector(".faq-toggle");
+          if (!toggle) return;
+          toggle.textContent = i.classList.contains("open") ? "−" : "+";
+        });
+      });
+    });
+
+    // اسکرول ریویل حرفه‌ای
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("in-view");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.16 }
+    );
+    document.querySelectorAll(".reveal").forEach(el => observer.observe(el));
+  </script>
+</body>
+</html>
