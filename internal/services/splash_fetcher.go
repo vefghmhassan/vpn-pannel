@@ -709,3 +709,89 @@ func mustURLDecode(s string) string {
 	}
 	return s
 }
+
+// FetchSplashAndReturn performs a live fetch of splash protocols and returns the working items
+// without persisting them to the database. The returned records contain encrypted Value fields,
+// which can be decrypted by callers with utils.DecryptValue (same as ApiSPlash).
+func FetchSplashAndReturn() ([]models.SplashProtocol, error) {
+	client := &http.Client{Timeout: 20 * time.Second}
+	url := "https://managev1.xyz/api/protocols/splash"
+	if url == "" {
+		url = "https://managev1.xyz/api/protocols/splash"
+	}
+
+	log.Printf("start fetch new ")
+	req, err := http.NewRequest(http.MethodGet, url, strings.NewReader("{}"))
+	if err != nil {
+		log.Printf("splash: new request: %v", err)
+		return nil, err
+	}
+
+	// ensure JSON content-type as curl had
+	req.Header.Add("giat", "")
+	req.Header.Add("build", "false")
+	req.Header.Add("seen", "1")
+	req.Header.Add("sign", "nyS5SxIAh1sqpLIhAYnoFg==")
+	req.Header.Add("Host", "managev1.xyz")
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("token", "bf8009ecdd7c41a3")
+	req.Header.Add("firebase_token", "cmmd8qHrTseaQMjZksQn_C:APA91bGwOlYixYil3Wi8k44T2IftbrtEPCTTmQUcZCvNt1r2U-Hl6GnWKHDYWhVNlB4CAWYfAgoOuCi_VTwchDV2eiOejjT2AIG6tav24lrrONY4Nq5JvwA")
+	req.Header.Add("sha_hexadecimal", "6a28befce23991c20d92f4a64b7faf9922308c8e10c5f687ef811ad885d03ee0")
+	req.Header.Add("version_code", "1005697")
+	req.Header.Add("app_name", "co.vpn.plus")
+	req.Header.Add("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 7.1.2; SM-N976N Build/QP1A.190711.020)")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("splash: request failed: %v", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		log.Printf("splash: non-2xx status: %s", resp.Status)
+		return nil, fmt.Errorf("splash: non-2xx status: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("splash: read body failed: %v", err)
+		return nil, err
+	}
+	if len(body) == 0 {
+		log.Printf("splash: empty body")
+		return nil, nil
+	}
+	var items []splashItem
+	if err := json.Unmarshal(body, &items); err != nil {
+		var wrap struct {
+			Data []splashItem `json:"data"`
+		}
+		if err2 := json.Unmarshal(body, &wrap); err2 == nil && len(wrap.Data) > 0 {
+			items = wrap.Data
+		} else {
+			var single splashItem
+			if err3 := json.Unmarshal(body, &single); err3 == nil && single.ID != 0 {
+				items = []splashItem{single}
+			} else {
+				return nil, fmt.Errorf("splash: decode failed: %v", err)
+			}
+		}
+	}
+	if len(items) == 0 {
+		return []models.SplashProtocol{}, nil
+	}
+	// Return items directly without ping/Xray validation
+	out := make([]models.SplashProtocol, 0, len(items))
+	for _, it := range items {
+		out = append(out, models.SplashProtocol{
+			ID:       it.ID,
+			Name:     it.Name,
+			Value:    it.Value,
+			Price:    it.Price,
+			Usage:    it.Usage,
+			ServerID: it.ServerID,
+			PingMs:   0,
+		})
+	}
+	return out, nil
+}

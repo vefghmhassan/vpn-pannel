@@ -264,6 +264,27 @@ func ApiSPlash(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"splash": resp})
 }
 
+// ApiSplashRefresh performs a live fetch via services and returns converted items like ApiSPlash
+func ApiSplashRefresh(c *fiber.Ctx) error {
+	items, err := services.FetchSplashAndReturn()
+	if err != nil {
+		return fiber.ErrInternalServerError
+	}
+	resp := make([]SplashItemDTO, 0, len(items))
+	for _, r := range items {
+		vitem, _ := utils.DecryptValue(r.Value, int(r.ID))
+		resp = append(resp, SplashItemDTO{
+			ID:        uint(r.ID),
+			Name:      r.Name,
+			Value:     vitem,
+			ServerID:  r.ServerID,
+			CreatedAt: r.CreatedAt,
+			UpdatedAt: r.UpdatedAt,
+		})
+	}
+	return c.JSON(fiber.Map{"splash": resp})
+}
+
 // ApiSettings returns public application settings for the mobile app
 func ApiSettings(c *fiber.Ctx) error {
 	var s models.AppSettings

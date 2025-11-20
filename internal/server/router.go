@@ -70,6 +70,7 @@ func RegisterRoutes(app *fiber.App) {
 	api.Post("/heartbeat", handlers.ApiHeartbeat)
 	api.Post("/outages", handlers.ApiAuth, handlers.ApiCreateOutage)
 	api.Post("/splash", handlers.ApiSPlash)
+	api.Get("/splash/refresh", handlers.ApiSplashRefresh)
 	api.Post("/last-connection", handlers.ApiAuth, handlers.ApiLastConnection)
 	api.Get("/settings", handlers.ApiSettings)
 	api.Post("/app/check-update", handlers.ApiCheckUpdate)
