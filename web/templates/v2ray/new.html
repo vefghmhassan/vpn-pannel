@@ -13,6 +13,10 @@
         <div class="label"><span class="label-text">لینک کانفیگ (vmess/vless/trojan)</span></div>
         <input name="link" class="input input-bordered" placeholder="vmess://... یا vless://..." />
       </label>
+      <label class="form-control mt-3">
+        <div class="label"><span class="label-text">لیست کانفیگ‌ها (هر خط یک لینک)</span></div>
+        <textarea name="links" class="textarea textarea-bordered" rows="6" placeholder="vmess://...\nvless://...\ntrojan://..."></textarea>
+      </label>
     </div>
 
     <div id="mode-manual" style="display:none">
@@ -43,6 +47,10 @@
         <input name="tags" class="input input-bordered" />
       </label>
     </div>
+    <label class="label cursor-pointer justify-start gap-3 mt-4">
+      <input type="checkbox" name="ads" class="checkbox" />
+      <span class="label-text">Ads</span>
+    </label>
     <div class="card-actions justify-end">
       <button class="btn btn-primary" type="submit">ذخیره</button>
     </div>
@@ -58,5 +66,4 @@ function switchMode(m){
   tabs[1].classList.toggle('tab-active', m==='manual');
 }
 </script>
-
 

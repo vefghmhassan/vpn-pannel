@@ -12,9 +12,9 @@ type V2RayNode struct {
     Port      int    `gorm:"not null"`
     Protocol  string `gorm:"size:32;not null"` // vmess, vless, trojan
     Tags      string `gorm:"size:255"`         // comma separated
+    Ads       bool   `gorm:"default:false"`
     IsActive  bool   `gorm:"default:true"`
     Capacity  int    `gorm:"default:0"` // optional capacity indicator
     RawLink   string `gorm:"size:1024"` // optional original config link
 }
-
 

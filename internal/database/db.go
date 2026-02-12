@@ -38,6 +38,7 @@ func AutoMigrateAndSeed() error {
 		&models.User{},
 		&models.MobileDevice{},
 		&models.V2RayNode{},
+		&models.V2RayLease{},
 		&models.OutageReport{},
 		&models.SplashProtocol{},
 		&models.AppSettings{},

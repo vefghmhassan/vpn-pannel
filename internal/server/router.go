@@ -4,9 +4,11 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	swagger "github.com/gofiber/swagger"
 
 	"vpnpannel/internal/server/handlers"
 	"vpnpannel/internal/server/middleware"
+	_ "vpnpannel/internal/swagger"
 )
 
 func RegisterRoutes(app *fiber.App) {
@@ -71,6 +73,7 @@ func RegisterRoutes(app *fiber.App) {
 	api.Post("/outages", handlers.ApiAuth, handlers.ApiCreateOutage)
 	//api.Post("/splash", handlers.ApiSPlash)
 	api.Post("/splash", handlers.ApiSplashRefresh)
+	api.Post("/splash/conf", handlers.ApiSplashConf)
 	api.Post("/last-connection", handlers.ApiAuth, handlers.ApiLastConnection)
 	api.Get("/settings", handlers.ApiSettings)
 	api.Post("/app/check-update", handlers.ApiCheckUpdate)
@@ -80,5 +83,6 @@ func RegisterRoutes(app *fiber.App) {
 		return c.JSON(fiber.Map{"ok": true, "time": time.Now()})
 	})
 
-	// Swagger UI removed per request
+	// Swagger UI
+	app.Get("/swagger/*", swagger.HandlerDefault)
 }

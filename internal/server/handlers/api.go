@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -163,6 +164,86 @@ func ApiNodes(c *fiber.Ctx) error {
 	var nodes []models.V2RayNode
 	database.DB.Where("is_active = ?", true).Order("id desc").Find(&nodes)
 	return c.JSON(fiber.Map{"nodes": nodes})
+}
+
+type ConfRequest struct {
+	ClientKey string `json:"client_key"`
+	DeviceID  string `json:"device_id"`
+}
+
+type ConfResponse struct {
+	NoAds models.V2RayNode `json:"no_ads"`
+	Ads   models.V2RayNode `json:"ads"`
+}
+
+// ApiSplashConf returns two nodes per request: one ads=false and one ads=true.
+// It leases each node to the requester for 30 minutes when possible.
+func ApiSplashConf(c *fiber.Ctx) error {
+	var in ConfRequest
+	_ = c.BodyParser(&in)
+	reqKey := requestKey(c, in.ClientKey, in.DeviceID)
+	now := time.Now()
+
+	noAds, err := findOrAssignNode(reqKey, false, now)
+	if err != nil {
+		return fiber.NewError(fiber.StatusServiceUnavailable, "no non-ads nodes available")
+	}
+	ads, err := findOrAssignNode(reqKey, true, now)
+	if err != nil {
+		return fiber.NewError(fiber.StatusServiceUnavailable, "no ads nodes available")
+	}
+	return c.JSON(ConfResponse{NoAds: noAds, Ads: ads})
+}
+
+func requestKey(c *fiber.Ctx, clientKey string, deviceID string) string {
+	base := strings.TrimSpace(clientKey)
+	if base == "" {
+		base = strings.TrimSpace(c.IP()) + "|" + strings.TrimSpace(c.Get("User-Agent")) + "|" + strings.TrimSpace(deviceID)
+	}
+	sum := sha256.Sum256([]byte(base))
+	return hex.EncodeToString(sum[:])
+}
+
+func findOrAssignNode(reqKey string, ads bool, now time.Time) (models.V2RayNode, error) {
+	var lease models.V2RayLease
+	if err := database.DB.Where("request_key = ? AND ads = ? AND expires_at > ?", reqKey, ads, now).
+		First(&lease).Error; err == nil {
+		var node models.V2RayNode
+		if err := database.DB.Where("id = ? AND is_active = ?", lease.NodeID, true).First(&node).Error; err == nil {
+			return node, nil
+		}
+	}
+
+	// Try to find a free node (not leased) first.
+	var leasedIDs []uint
+	database.DB.Model(&models.V2RayLease{}).
+		Where("ads = ? AND expires_at > ?", ads, now).
+		Pluck("node_id", &leasedIDs)
+
+	var node models.V2RayNode
+	q := database.DB.Where("is_active = ? AND ads = ?", true, ads)
+	if len(leasedIDs) > 0 {
+		q = q.Where("id NOT IN ?", leasedIDs)
+	}
+	if err := q.Order("RANDOM()").First(&node).Error; err != nil {
+		// Fallback: choose any active node (even if leased)
+		if err2 := database.DB.Where("is_active = ? AND ads = ?", true, ads).Order("RANDOM()").First(&node).Error; err2 != nil {
+			return models.V2RayNode{}, err2
+		}
+	}
+
+	// Create or update lease for requester
+	expires := now.Add(30 * time.Minute)
+	if err := database.DB.Where("request_key = ? AND ads = ?", reqKey, ads).First(&lease).Error; err == nil {
+		lease.NodeID = node.ID
+		lease.ExpiresAt = expires
+		_ = database.DB.Save(&lease).Error
+	} else {
+		lease = models.V2RayLease{RequestKey: reqKey, Ads: ads, NodeID: node.ID, ExpiresAt: expires}
+		_ = database.DB.Create(&lease).Error
+	}
+
+	return node, nil
 }
 
 func ApiCreateOutage(c *fiber.Ctx) error {
