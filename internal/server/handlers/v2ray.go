@@ -3,6 +3,9 @@ package handlers
 import (
     "bufio"
     "fmt"
+    "os"
+    "path/filepath"
+    "sort"
     "strconv"
     "strings"
 
@@ -23,7 +26,11 @@ func V2RayList(c *fiber.Ctx) error {
 }
 
 func V2RayNewPage(c *fiber.Ctx) error {
-    return c.Render("v2ray/new", fiber.Map{"title": "Add V2Ray Node"})
+    countries := listCountryCodes()
+    return c.Render("v2ray/new", fiber.Map{
+        "title": "Add V2Ray Node",
+        "countries": countries,
+    })
 }
 
 func V2RayCreate(c *fiber.Ctx) error {
@@ -37,11 +44,17 @@ func V2RayCreate(c *fiber.Ctx) error {
         Links    string `form:"links"`
         Mode     string `form:"mode"` // link or manual
         Ads      string `form:"ads"`
+        Country  string `form:"country"`
     }
     if err := c.BodyParser(&in); err != nil {
         return fiber.ErrBadRequest
     }
     adsEnabled := in.Ads != ""
+    country := strings.ToUpper(strings.TrimSpace(in.Country))
+    countryFlag := ""
+    if country != "" {
+        countryFlag = "/country/" + country + ".png"
+    }
 
     var node models.V2RayNode
     if in.Mode == "link" && strings.TrimSpace(in.Links) != "" {
@@ -69,6 +82,8 @@ func V2RayCreate(c *fiber.Ctx) error {
                 Protocol: p.Protocol,
                 Tags:     p.Tags,
                 Ads:      adsEnabled,
+                CountryCode: country,
+                CountryFlag: countryFlag,
                 IsActive: true,
                 RawLink:  line,
             }
@@ -91,9 +106,9 @@ func V2RayCreate(c *fiber.Ctx) error {
         if name == "" {
             name = fmt.Sprintf("%s:%d", p.Address, p.Port)
         }
-        node = models.V2RayNode{Name: name, Address: p.Address, Port: p.Port, Protocol: p.Protocol, Tags: p.Tags, Ads: adsEnabled, IsActive: true, RawLink: in.Link}
+        node = models.V2RayNode{Name: name, Address: p.Address, Port: p.Port, Protocol: p.Protocol, Tags: p.Tags, Ads: adsEnabled, CountryCode: country, CountryFlag: countryFlag, IsActive: true, RawLink: in.Link}
     } else {
-        node = models.V2RayNode{Name: in.Name, Address: in.Address, Port: in.Port, Protocol: in.Protocol, Tags: in.Tags, Ads: adsEnabled, IsActive: true}
+        node = models.V2RayNode{Name: in.Name, Address: in.Address, Port: in.Port, Protocol: in.Protocol, Tags: in.Tags, Ads: adsEnabled, CountryCode: country, CountryFlag: countryFlag, IsActive: true}
     }
     if err := database.DB.Create(&node).Error; err != nil {
         return fiber.ErrInternalServerError
@@ -101,9 +116,30 @@ func V2RayCreate(c *fiber.Ctx) error {
     return c.Redirect("/admin/v2ray")
 }
 
+func listCountryCodes() []string {
+    entries, err := os.ReadDir("country")
+    if err != nil {
+        return []string{}
+    }
+    codes := make([]string, 0, len(entries))
+    for _, e := range entries {
+        if e.IsDir() {
+            continue
+        }
+        name := e.Name()
+        if strings.HasSuffix(strings.ToLower(name), ".png") {
+            code := strings.TrimSuffix(name, filepath.Ext(name))
+            if code != "" {
+                codes = append(codes, strings.ToUpper(code))
+            }
+        }
+    }
+    sort.Strings(codes)
+    return codes
+}
+
 func V2RayDelete(c *fiber.Ctx) error {
     id, _ := strconv.Atoi(c.Params("id"))
     database.DB.Delete(&models.V2RayNode{}, id)
     return c.Redirect("/admin/v2ray")
 }
-

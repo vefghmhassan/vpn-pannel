@@ -13,8 +13,9 @@ type V2RayNode struct {
     Protocol  string `gorm:"size:32;not null"` // vmess, vless, trojan
     Tags      string `gorm:"size:255"`         // comma separated
     Ads       bool   `gorm:"default:false"`
+    CountryCode string `gorm:"size:8"`
+    CountryFlag string `gorm:"size:255"`
     IsActive  bool   `gorm:"default:true"`
     Capacity  int    `gorm:"default:0"` // optional capacity indicator
     RawLink   string `gorm:"size:1024"` // optional original config link
 }
-

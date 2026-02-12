@@ -47,6 +47,15 @@
         <input name="tags" class="input input-bordered" />
       </label>
     </div>
+    <label class="form-control mt-3">
+      <div class="label"><span class="label-text">کشور</span></div>
+      <select name="country" class="select select-bordered">
+        <option value="">انتخاب کشور</option>
+        {{ range .countries }}
+          <option value="{{ . }}">{{ . }}</option>
+        {{ end }}
+      </select>
+    </label>
     <label class="label cursor-pointer justify-start gap-3 mt-4">
       <input type="checkbox" name="ads" class="checkbox" />
       <span class="label-text">Ads</span>
@@ -66,4 +75,3 @@ function switchMode(m){
   tabs[1].classList.toggle('tab-active', m==='manual');
 }
 </script>
-

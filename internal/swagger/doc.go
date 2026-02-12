@@ -232,6 +232,8 @@ const docTemplate = `{
         "protocol": {"type": "string"},
         "tags": {"type": "string"},
         "ads": {"type": "boolean"},
+        "country_code": {"type": "string"},
+        "country_flag": {"type": "string"},
         "is_active": {"type": "boolean"},
         "capacity": {"type": "integer"},
         "raw_link": {"type": "string"}

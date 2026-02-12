@@ -14,6 +14,7 @@ import (
 func RegisterRoutes(app *fiber.App) {
 	// Serve uploaded files
 	app.Static("/uploads", "./uploads")
+	app.Static("/country", "./country")
 	// Auth
 	app.Get("/login", handlers.LoginPage)
 	app.Post("/login", handlers.LoginSubmit)
