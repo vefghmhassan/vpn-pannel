@@ -48,7 +48,7 @@ func main() {
 	// start background jobs
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	services.StartSplashFetcher(ctx)
+	// services.StartSplashFetcher(ctx)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {
