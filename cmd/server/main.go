@@ -9,7 +9,6 @@ import (
 	"vpnpannel/internal/config"
 	"vpnpannel/internal/database"
 	"vpnpannel/internal/server"
-	"vpnpannel/internal/services"
 )
 
 func main() {
@@ -45,10 +44,8 @@ func main() {
 	// Setup routes
 	server.RegisterRoutes(app)
 
-	// start background jobs
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	// services.StartSplashFetcher(ctx)
+	// start background jobs (disabled)
+	_ = context.Background()
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {
