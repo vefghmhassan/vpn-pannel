@@ -207,7 +207,7 @@ func requestKey(c *fiber.Ctx, clientKey string, deviceID string) string {
 func findOrAssignNode(reqKey string, ads bool, now time.Time) (models.V2RayNode, error) {
 	var lease models.V2RayLease
 	if err := database.DB.Where("request_key = ? AND ads = ? AND expires_at > ?", reqKey, ads, now).
-		First(&lease).Error; err == nil {
+		Limit(1).Find(&lease).Error; err == nil && lease.ID != 0 {
 		var node models.V2RayNode
 		if err := database.DB.Where("id = ? AND is_active = ?", lease.NodeID, true).First(&node).Error; err == nil {
 			return node, nil
@@ -234,7 +234,7 @@ func findOrAssignNode(reqKey string, ads bool, now time.Time) (models.V2RayNode,
 
 	// Create or update lease for requester
 	expires := now.Add(30 * time.Minute)
-	if err := database.DB.Where("request_key = ? AND ads = ?", reqKey, ads).First(&lease).Error; err == nil {
+	if err := database.DB.Where("request_key = ? AND ads = ?", reqKey, ads).Limit(1).Find(&lease).Error; err == nil && lease.ID != 0 {
 		lease.NodeID = node.ID
 		lease.ExpiresAt = expires
 		_ = database.DB.Save(&lease).Error

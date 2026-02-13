@@ -75,6 +75,10 @@ func V2RayCreate(c *fiber.Ctx) error {
             if name == "" {
                 name = fmt.Sprintf("%s:%d", p.Address, p.Port)
             }
+            if v2rayNameExists(name) {
+                failed++
+                continue
+            }
             node = models.V2RayNode{
                 Name:     name,
                 Address:  p.Address,
@@ -106,8 +110,14 @@ func V2RayCreate(c *fiber.Ctx) error {
         if name == "" {
             name = fmt.Sprintf("%s:%d", p.Address, p.Port)
         }
+        if v2rayNameExists(name) {
+            return c.Status(fiber.StatusBadRequest).SendString("duplicate name")
+        }
         node = models.V2RayNode{Name: name, Address: p.Address, Port: p.Port, Protocol: p.Protocol, Tags: p.Tags, Ads: adsEnabled, CountryCode: country, CountryFlag: countryFlag, IsActive: true, RawLink: in.Link}
     } else {
+        if in.Name != "" && v2rayNameExists(in.Name) {
+            return c.Status(fiber.StatusBadRequest).SendString("duplicate name")
+        }
         node = models.V2RayNode{Name: in.Name, Address: in.Address, Port: in.Port, Protocol: in.Protocol, Tags: in.Tags, Ads: adsEnabled, CountryCode: country, CountryFlag: countryFlag, IsActive: true}
     }
     if err := database.DB.Create(&node).Error; err != nil {
@@ -136,6 +146,15 @@ func listCountryCodes() []string {
     }
     sort.Strings(codes)
     return codes
+}
+
+func v2rayNameExists(name string) bool {
+    if strings.TrimSpace(name) == "" {
+        return false
+    }
+    var count int64
+    database.DB.Model(&models.V2RayNode{}).Where("name = ?", name).Count(&count)
+    return count > 0
 }
 
 func V2RayDelete(c *fiber.Ctx) error {
