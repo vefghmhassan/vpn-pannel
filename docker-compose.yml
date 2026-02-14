@@ -6,6 +6,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB_NAME:-vpnpannel}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGPORT: 5444
+    command: ["-p", "5444"]
     volumes:
       - dbdata:/var/lib/postgresql/data
 
@@ -26,5 +28,4 @@ services:
 volumes:
   dbdata:
   go-modules:
-
 

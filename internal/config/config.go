@@ -25,7 +25,7 @@ func Load() error {
 	_ = godotenv.Load()
 
 	Current = Config{
-		DatabaseURL:   getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/vpnpannel?sslmode=disable"),
+		DatabaseURL:   getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5444/vpnpannel?sslmode=disable"),
 		JWTSecret:     getenv("JWT_SECRET", "dev-secret-change"),
 		AdminEmail:    getenv("ADMIN_EMAIL", "admin@example.com"),
 		AdminPassword: getenv("ADMIN_PASSWORD", "admin1234"),
