@@ -8,8 +8,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - dbdata:/var/lib/postgresql/data
-    ports:
-      - "5436:5432"
 
   golang:
     container_name: ${GO_CONTAINER:-vpnpannel-go}
@@ -28,6 +26,5 @@ services:
 volumes:
   dbdata:
   go-modules:
-
 
 
