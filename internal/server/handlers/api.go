@@ -379,6 +379,7 @@ func ApiSettings(c *fiber.Ctx) error {
 		"show_ads_on_main_page": s.ShowAdsOnMainPage,
 		"current_version":       s.CurrentVersion,
 		"ad_unit_id":            s.AdUnitID,
+		"ads_application_id":    s.AdsApplicationID,
 		"updated_app":           s.UpdateEnable,
 		"privacy_url":           s.PrivacyURL,
 		"connected_timeout":     s.ConnectedTimeoutSeconds,

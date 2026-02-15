@@ -21,6 +21,8 @@ type AppSettings struct {
 
 	// Mobile ads unit id (if any)
 	AdUnitID string `gorm:"size:128" json:"adUnitId"`
+	// Mobile ads application id (if any)
+	AdsApplicationID string `gorm:"size:128" json:"adsApplicationId"`
 	// Privacy policy URL for the app
 	PrivacyURL string `gorm:"size:255" json:"privacyUrl"`
 	// Timeout (seconds) for considering a connection as established

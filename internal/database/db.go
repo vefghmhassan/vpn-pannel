@@ -86,9 +86,10 @@ func seedSettings() error {
 		ShowAdsAfterSplash: false,
 		ShowAdsOnMainPage:  false,
 		CurrentVersion:     "1.0.0",
-        AdUnitID:           "",
-        PrivacyURL:         "",
-        ConnectedTimeoutSeconds: 15,
+		AdUnitID:           "",
+		AdsApplicationID:   "",
+		PrivacyURL:         "",
+		ConnectedTimeoutSeconds: 15,
 	}
 	return DB.Create(&defaults).Error
 }

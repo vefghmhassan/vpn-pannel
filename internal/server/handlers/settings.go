@@ -40,6 +40,9 @@ func SettingsUpdate(c *fiber.Ctx) error {
 	if v := c.FormValue("ad_unit_id"); v != "" {
 		s.AdUnitID = v
 	}
+	if v := c.FormValue("ads_application_id"); v != "" {
+		s.AdsApplicationID = v
+	}
 	if v := c.FormValue("privacy_url"); v != "" {
 		s.PrivacyURL = v
 	}
