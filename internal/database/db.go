@@ -42,8 +42,8 @@ func AutoMigrateAndSeed() error {
 		&models.OutageReport{},
 		&models.SplashProtocol{},
 		&models.AppSettings{},
-        &models.AppVersion{},
-        &models.AppBuild{},
+		&models.AppVersion{},
+		&models.AppBuild{},
 	); err != nil {
 		return err
 	}
@@ -81,14 +81,15 @@ func seedSettings() error {
 		return nil
 	}
 	defaults := models.AppSettings{
-		ID:                 1,
-		AdsEnabledInSplash: false,
-		ShowAdsAfterSplash: false,
-		ShowAdsOnMainPage:  false,
-		CurrentVersion:     "1.0.0",
-		AdUnitID:           "",
-		AdsApplicationID:   "",
-		PrivacyURL:         "",
+		ID:                      1,
+		AdsEnabledInSplash:      false,
+		ShowAdsAfterSplash:      false,
+		ShowAdsOnMainPage:       false,
+		CurrentVersion:          "1.0.0",
+		AdUnitID:                "",
+		AdsRewardUnit:           "",
+		AdsApplicationID:        "",
+		PrivacyURL:              "",
 		ConnectedTimeoutSeconds: 15,
 	}
 	return DB.Create(&defaults).Error
