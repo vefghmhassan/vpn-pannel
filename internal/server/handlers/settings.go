@@ -33,6 +33,8 @@ func SettingsUpdate(c *fiber.Ctx) error {
 	s.UpdateEnable = c.FormValue("update_enable") != ""
 	s.ShowAdsAfterSplash = c.FormValue("show_ads_after_splash") != ""
 	s.ShowAdsOnMainPage = c.FormValue("show_ads_on_main_page") != ""
+	s.AdsRewardEnabled = c.FormValue("ads_reward_enabled") != ""
+	s.AdsAppOpenEnabled = c.FormValue("ads_app_open_enabled") != ""
 	if v := c.FormValue("current_version"); v != "" {
 		s.CurrentVersion = v
 	}
@@ -40,9 +42,15 @@ func SettingsUpdate(c *fiber.Ctx) error {
 	if v := c.FormValue("ad_unit_id"); v != "" {
 		s.AdUnitID = v
 	}
+<<<<<<< main
+=======
 	if v := c.FormValue("ads_reward_unit"); v != "" {
 		s.AdsRewardUnit = v
 	}
+	if v := c.FormValue("ads_unit_open"); v != "" {
+		s.AdsUnitOpen = v
+	}
+>>>>>>> local
 	if v := c.FormValue("ads_application_id"); v != "" {
 		s.AdsApplicationID = v
 	}

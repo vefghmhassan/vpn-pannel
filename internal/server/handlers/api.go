@@ -371,15 +371,29 @@ func ApiSettings(c *fiber.Ctx) error {
 	var s models.AppSettings
 	if err := database.DB.First(&s, 1).Error; err != nil {
 		// ensure a default response even if not seeded yet
-		s = models.AppSettings{AdsEnabledInSplash: false, ShowAdsAfterSplash: false, ShowAdsOnMainPage: false, CurrentVersion: "1.0.0", ConnectedTimeoutSeconds: 15}
+		s = models.AppSettings{
+			AdsEnabledInSplash:      false,
+			ShowAdsAfterSplash:      false,
+			ShowAdsOnMainPage:       false,
+			AdsRewardEnabled:        false,
+			AdsAppOpenEnabled:       false,
+			CurrentVersion:          "1.0.0",
+			ConnectedTimeoutSeconds: 15,
+		}
 	}
 	return c.JSON(fiber.Map{
 		"ads_enabled_in_splash": s.AdsEnabledInSplash,
 		"show_ads_after_splash": s.ShowAdsAfterSplash,
 		"show_ads_on_main_page": s.ShowAdsOnMainPage,
+		"ads_reward_enabled":    s.AdsRewardEnabled,
+		"ads_app_open_enabled":  s.AdsAppOpenEnabled,
 		"current_version":       s.CurrentVersion,
 		"ad_unit_id":            s.AdUnitID,
+<<<<<<< main
+=======
 		"ads_reward_unit":       s.AdsRewardUnit,
+		"ads_unit_open":         s.AdsUnitOpen,
+>>>>>>> local
 		"ads_application_id":    s.AdsApplicationID,
 		"updated_app":           s.UpdateEnable,
 		"privacy_url":           s.PrivacyURL,

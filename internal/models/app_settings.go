@@ -15,14 +15,23 @@ type AppSettings struct {
 	ShowAdsAfterSplash bool `gorm:"not null;default:false" json:"showAdsAfterSplash"`
 	// Whether to show ads on the application's main page
 	ShowAdsOnMainPage bool `gorm:"not null;default:false" json:"showAdsOnMainPage"`
+	// Whether rewarded ads are enabled
+	AdsRewardEnabled bool `gorm:"not null;default:false" json:"adsRewardEnabled"`
+	// Whether app-open ads are enabled
+	AdsAppOpenEnabled bool `gorm:"not null;default:false" json:"adsAppOpenEnabled"`
 	UpdateEnable      bool `gorm:"not null;default:true" json:"updateEnable"`
 	// Current application version string (e.g., 1.0.0)
 	CurrentVersion string `gorm:"size:32;not null;default:'1.0.0'" json:"currentVersion"`
 
 	// Mobile ads unit id (if any)
 	AdUnitID string `gorm:"size:128" json:"adUnitId"`
+<<<<<<< main
+=======
 	// Mobile rewarded ads unit id (if any)
 	AdsRewardUnit string `gorm:"size:128" json:"adsRewardUnit"`
+	// Mobile app-open ads unit id (if any)
+	AdsUnitOpen string `gorm:"size:128" json:"adsUnitOpen"`
+>>>>>>> local
 	// Mobile ads application id (if any)
 	AdsApplicationID string `gorm:"size:128" json:"adsApplicationId"`
 	// Privacy policy URL for the app
