@@ -25,13 +25,10 @@ type AppSettings struct {
 
 	// Mobile ads unit id (if any)
 	AdUnitID string `gorm:"size:128" json:"adUnitId"`
-<<<<<<< main
-=======
 	// Mobile rewarded ads unit id (if any)
 	AdsRewardUnit string `gorm:"size:128" json:"adsRewardUnit"`
 	// Mobile app-open ads unit id (if any)
 	AdsUnitOpen string `gorm:"size:128" json:"adsUnitOpen"`
->>>>>>> local
 	// Mobile ads application id (if any)
 	AdsApplicationID string `gorm:"size:128" json:"adsApplicationId"`
 	// Privacy policy URL for the app

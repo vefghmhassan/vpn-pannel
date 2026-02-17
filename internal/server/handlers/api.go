@@ -389,11 +389,8 @@ func ApiSettings(c *fiber.Ctx) error {
 		"ads_app_open_enabled":  s.AdsAppOpenEnabled,
 		"current_version":       s.CurrentVersion,
 		"ad_unit_id":            s.AdUnitID,
-<<<<<<< main
-=======
 		"ads_reward_unit":       s.AdsRewardUnit,
 		"ads_unit_open":         s.AdsUnitOpen,
->>>>>>> local
 		"ads_application_id":    s.AdsApplicationID,
 		"updated_app":           s.UpdateEnable,
 		"privacy_url":           s.PrivacyURL,

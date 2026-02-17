@@ -196,11 +196,8 @@ const docTemplate = `{
         "ads_app_open_enabled": {"type": "boolean"},
         "current_version": {"type": "string"},
         "ad_unit_id": {"type": "string"},
-<<<<<<< main
-=======
         "ads_reward_unit": {"type": "string"},
         "ads_unit_open": {"type": "string"},
->>>>>>> local
         "ads_application_id": {"type": "string"},
         "updated_app": {"type": "boolean"},
         "privacy_url": {"type": "string"},
