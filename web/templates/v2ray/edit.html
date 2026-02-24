@@ -1,0 +1,76 @@
+<div class="card bg-base-100 shadow">
+  <form class="card-body" method="post" action="/admin/v2ray/{{ .node.ID }}/edit">
+    <h2 class="card-title">ویرایش V2Ray</h2>
+
+    <div class="tabs">
+      <a class="tab tab-bordered tab-active" onclick="switchMode('manual')">دستی</a>
+      <a class="tab tab-bordered" onclick="switchMode('link')">ریپلیس با لینک</a>
+    </div>
+    <input type="hidden" name="mode" id="mode" value="manual" />
+
+    <div id="mode-manual">
+      <label class="form-control">
+        <div class="label"><span class="label-text">نام</span></div>
+        <input name="name" class="input input-bordered" value="{{ .node.Name }}" />
+      </label>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <label class="form-control">
+          <div class="label"><span class="label-text">آدرس</span></div>
+          <input name="address" class="input input-bordered" value="{{ .node.Address }}" />
+        </label>
+        <label class="form-control">
+          <div class="label"><span class="label-text">پورت</span></div>
+          <input type="number" name="port" class="input input-bordered" value="{{ .node.Port }}" />
+        </label>
+        <label class="form-control">
+          <div class="label"><span class="label-text">پروتکل</span></div>
+          <select name="protocol" class="select select-bordered">
+            <option {{ if eq .node.Protocol "vmess" }}selected{{ end }}>vmess</option>
+            <option {{ if eq .node.Protocol "vless" }}selected{{ end }}>vless</option>
+            <option {{ if eq .node.Protocol "trojan" }}selected{{ end }}>trojan</option>
+          </select>
+        </label>
+      </div>
+      <label class="form-control">
+        <div class="label"><span class="label-text">تگ‌ها (با کاما)</span></div>
+        <input name="tags" class="input input-bordered" value="{{ .node.Tags }}" />
+      </label>
+    </div>
+
+    <div id="mode-link" style="display:none">
+      <label class="form-control">
+        <div class="label"><span class="label-text">لینک کانفیگ جدید (vmess/vless/trojan)</span></div>
+        <input name="link" class="input input-bordered" placeholder="vmess://... یا vless://..." value="{{ .node.RawLink }}" />
+      </label>
+      <p class="text-xs opacity-70 mt-2">با ذخیره، همه فیلدها از روی لینک جایگزین می‌شوند.</p>
+    </div>
+
+    <label class="form-control mt-3">
+      <div class="label"><span class="label-text">کشور</span></div>
+      <select name="country" class="select select-bordered">
+        <option value="">انتخاب کشور</option>
+        {{ range .countries }}
+          <option value="{{ . }}" {{ if eq $.node.CountryCode . }}selected{{ end }}>{{ . }}</option>
+        {{ end }}
+      </select>
+    </label>
+    <label class="label cursor-pointer justify-start gap-3 mt-4">
+      <input type="checkbox" name="ads" class="checkbox" {{ if .node.Ads }}checked{{ end }} />
+      <span class="label-text">Ads</span>
+    </label>
+    <div class="card-actions justify-end">
+      <button class="btn btn-primary" type="submit">ذخیره</button>
+      <a class="btn" href="/admin/v2ray">بازگشت</a>
+    </div>
+  </form>
+</div>
+<script>
+function switchMode(m){
+  document.getElementById('mode').value = m;
+  document.getElementById('mode-link').style.display = m==='link'?'block':'none';
+  document.getElementById('mode-manual').style.display = m==='manual'?'block':'none';
+  const tabs = document.querySelectorAll('.tabs .tab');
+  tabs[0].classList.toggle('tab-active', m==='manual');
+  tabs[1].classList.toggle('tab-active', m==='link');
+}
+</script>

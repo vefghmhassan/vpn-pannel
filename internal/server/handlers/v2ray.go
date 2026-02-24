@@ -33,6 +33,20 @@ func V2RayNewPage(c *fiber.Ctx) error {
     })
 }
 
+func V2RayEditPage(c *fiber.Ctx) error {
+    id, _ := strconv.Atoi(c.Params("id"))
+    var node models.V2RayNode
+    if err := database.DB.First(&node, id).Error; err != nil {
+        return fiber.ErrNotFound
+    }
+    countries := listCountryCodes()
+    return c.Render("v2ray/edit", fiber.Map{
+        "title": "Edit V2Ray Node",
+        "node": node,
+        "countries": countries,
+    })
+}
+
 func V2RayCreate(c *fiber.Ctx) error {
     var in struct {
         Name     string `form:"name"`
@@ -126,6 +140,97 @@ func V2RayCreate(c *fiber.Ctx) error {
     return c.Redirect("/admin/v2ray")
 }
 
+func V2RayUpdate(c *fiber.Ctx) error {
+    id, _ := strconv.Atoi(c.Params("id"))
+    var node models.V2RayNode
+    if err := database.DB.First(&node, id).Error; err != nil {
+        return fiber.ErrNotFound
+    }
+
+    var in struct {
+        Name     string `form:"name"`
+        Address  string `form:"address"`
+        Port     int    `form:"port"`
+        Protocol string `form:"protocol"`
+        Tags     string `form:"tags"`
+        Link     string `form:"link"`
+        Mode     string `form:"mode"` // link or manual
+        Ads      string `form:"ads"`
+        Country  string `form:"country"`
+    }
+    if err := c.BodyParser(&in); err != nil {
+        return fiber.ErrBadRequest
+    }
+
+    adsEnabled := in.Ads != ""
+    country := strings.ToUpper(strings.TrimSpace(in.Country))
+    countryFlag := ""
+    if country != "" {
+        countryFlag = "/country/" + country + ".png"
+    }
+
+    if in.Mode == "link" {
+        link := strings.TrimSpace(in.Link)
+        if link == "" {
+            return fiber.NewError(fiber.StatusBadRequest, "link required")
+        }
+        p, err := services.ParseV2Link(link)
+        if err != nil {
+            return fiber.NewError(fiber.StatusBadRequest, "invalid link")
+        }
+        name := strings.TrimSpace(p.Name)
+        if name == "" {
+            name = fmt.Sprintf("%s:%d", p.Address, p.Port)
+        }
+        if v2rayNameExistsExcept(name, node.ID) {
+            return fiber.NewError(fiber.StatusBadRequest, "duplicate name")
+        }
+
+        node.Name = name
+        node.Address = p.Address
+        node.Port = p.Port
+        node.Protocol = p.Protocol
+        node.Tags = p.Tags
+        node.Ads = adsEnabled
+        node.CountryCode = country
+        node.CountryFlag = countryFlag
+        node.RawLink = link
+    } else {
+        name := strings.TrimSpace(in.Name)
+        if name == "" {
+            return fiber.NewError(fiber.StatusBadRequest, "name required")
+        }
+        if v2rayNameExistsExcept(name, node.ID) {
+            return fiber.NewError(fiber.StatusBadRequest, "duplicate name")
+        }
+        address := strings.TrimSpace(in.Address)
+        if address == "" {
+            return fiber.NewError(fiber.StatusBadRequest, "address required")
+        }
+        if in.Port <= 0 {
+            return fiber.NewError(fiber.StatusBadRequest, "invalid port")
+        }
+        protocol := strings.TrimSpace(in.Protocol)
+        if protocol == "" {
+            return fiber.NewError(fiber.StatusBadRequest, "protocol required")
+        }
+
+        node.Name = name
+        node.Address = address
+        node.Port = in.Port
+        node.Protocol = protocol
+        node.Tags = strings.TrimSpace(in.Tags)
+        node.Ads = adsEnabled
+        node.CountryCode = country
+        node.CountryFlag = countryFlag
+    }
+
+    if err := database.DB.Save(&node).Error; err != nil {
+        return fiber.ErrInternalServerError
+    }
+    return c.Redirect("/admin/v2ray")
+}
+
 func listCountryCodes() []string {
     entries, err := os.ReadDir("country")
     if err != nil {
@@ -154,6 +259,15 @@ func v2rayNameExists(name string) bool {
     }
     var count int64
     database.DB.Model(&models.V2RayNode{}).Where("name = ?", name).Count(&count)
+    return count > 0
+}
+
+func v2rayNameExistsExcept(name string, id uint) bool {
+    if strings.TrimSpace(name) == "" {
+        return false
+    }
+    var count int64
+    database.DB.Model(&models.V2RayNode{}).Where("name = ? AND id <> ?", name, id).Count(&count)
     return count > 0
 }
 

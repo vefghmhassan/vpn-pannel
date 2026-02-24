@@ -7,7 +7,7 @@
     <div class="overflow-x-auto">
       <table class="table">
         <thead>
-          <tr><th>ID</th><th>نام</th><th>آدرس</th><th>پورت</th><th>پروتکل</th><th>تگ‌ها</th><th>Ads</th><th>فعال</th><th></th></tr>
+          <tr><th>ID</th><th>نام</th><th>آدرس</th><th>پورت</th><th>پروتکل</th><th>تگ‌ها</th><th>Ads</th><th>فعال</th><th>عملیات</th></tr>
         </thead>
         <tbody>
           {{ range .nodes }}
@@ -21,9 +21,12 @@
             <td>{{ if .Ads }}✅{{ else }}❌{{ end }}</td>
             <td>{{ if .IsActive }}✅{{ else }}❌{{ end }}</td>
             <td>
-              <form method="post" action="/admin/v2ray/{{ .ID }}/delete">
-                <button class="btn btn-xs btn-error" onclick="return confirm('حذف شود؟')">حذف</button>
-              </form>
+              <div class="flex items-center gap-2">
+                <a class="btn btn-xs" href="/admin/v2ray/{{ .ID }}/edit">ویرایش</a>
+                <form method="post" action="/admin/v2ray/{{ .ID }}/delete">
+                  <button class="btn btn-xs btn-error" onclick="return confirm('حذف شود؟')">حذف</button>
+                </form>
+              </div>
             </td>
           </tr>
           {{ end }}
@@ -32,6 +35,5 @@
     </div>
   </div>
 </div>
-
 
 

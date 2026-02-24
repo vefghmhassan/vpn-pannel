@@ -35,6 +35,7 @@ func RegisterRoutes(app *fiber.App) {
 	admin.Get("/settings", handlers.SettingsPage)
 	app.Get("/", handlers.HomePage)
 	admin.Post("/settings", handlers.SettingsUpdate)
+	admin.Post("/settings/delete", handlers.SettingsDelete)
 	// Users
 	admin.Get("/users", handlers.UsersList)
 	admin.Get("/users/active", handlers.UsersActive)
@@ -44,6 +45,8 @@ func RegisterRoutes(app *fiber.App) {
 	admin.Get("/v2ray", handlers.V2RayList)
 	admin.Get("/v2ray/new", handlers.V2RayNewPage)
 	admin.Post("/v2ray/new", handlers.V2RayCreate)
+	admin.Get("/v2ray/:id/edit", handlers.V2RayEditPage)
+	admin.Post("/v2ray/:id/edit", handlers.V2RayUpdate)
 	admin.Post("/v2ray/:id/delete", handlers.V2RayDelete)
 	// Outages
 	admin.Get("/outages", handlers.OutagesList)
