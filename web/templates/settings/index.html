@@ -2,47 +2,54 @@
   <h1 class="text-2xl font-bold">تنظیمات برنامه</h1>
 </div>
 
-<form method="post" action="/admin/settings" class="space-y-6">
+<form method="post" action="/admin/settings" class="space-y-6" id="settings-form">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <label class="form-control cursor-pointer">
+      <div class="label">
+        <span class="label-text">انتخاب همه</span>
+      </div>
+      <input id="toggleAllSettings" type="checkbox" class="toggle toggle-secondary" />
+    </label>
+
     <label class="form-control cursor-pointer">
       <div class="label">
         <span class="label-text">فعال بودن تبلیغات در Splash</span>
       </div>
-      <input type="checkbox" name="ads_enabled_in_splash" class="toggle toggle-primary" {{ if .s.AdsEnabledInSplash }}checked{{ end }} />
+      <input type="checkbox" name="ads_enabled_in_splash" class="toggle toggle-primary js-setting-toggle" {{ if .s.AdsEnabledInSplash }}checked{{ end }} />
     </label>
 
     <label class="form-control cursor-pointer">
       <div class="label">
         <span class="label-text">نمایش تبلیغ بعد از Splash</span>
       </div>
-      <input type="checkbox" name="show_ads_after_splash" class="toggle toggle-primary" {{ if .s.ShowAdsAfterSplash }}checked{{ end }} />
+      <input type="checkbox" name="show_ads_after_splash" class="toggle toggle-primary js-setting-toggle" {{ if .s.ShowAdsAfterSplash }}checked{{ end }} />
     </label>
 
     <label class="form-control cursor-pointer">
       <div class="label">
         <span class="label-text">فعال بودن تبلیغ ریوارد</span>
       </div>
-      <input type="checkbox" name="ads_reward_enabled" class="toggle toggle-primary" {{ if .s.AdsRewardEnabled }}checked{{ end }} />
+      <input type="checkbox" name="ads_reward_enabled" class="toggle toggle-primary js-setting-toggle" {{ if .s.AdsRewardEnabled }}checked{{ end }} />
     </label>
 
     <label class="form-control cursor-pointer">
       <div class="label">
         <span class="label-text">فعال بودن تبلیغ App Open</span>
       </div>
-      <input type="checkbox" name="ads_app_open_enabled" class="toggle toggle-primary" {{ if .s.AdsAppOpenEnabled }}checked{{ end }} />
+      <input type="checkbox" name="ads_app_open_enabled" class="toggle toggle-primary js-setting-toggle" {{ if .s.AdsAppOpenEnabled }}checked{{ end }} />
     </label>
 
       <label class="form-control cursor-pointer">
           <div class="label">
               <span class="label-text">نمایش اپدیت در برنامه </span>
           </div>
-          <input type="checkbox" name="update_enable" class="toggle toggle-primary" {{ if .s.UpdateEnable }}checked{{ end }} />
+          <input type="checkbox" name="update_enable" class="toggle toggle-primary js-setting-toggle" {{ if .s.UpdateEnable }}checked{{ end }} />
       </label>
     <label class="form-control cursor-pointer">
       <div class="label">
         <span class="label-text">نمایش تبلیغات در صفحه اصلی</span>
       </div>
-      <input type="checkbox" name="show_ads_on_main_page" class="toggle toggle-primary" {{ if .s.ShowAdsOnMainPage }}checked{{ end }} />
+      <input type="checkbox" name="show_ads_on_main_page" class="toggle toggle-primary js-setting-toggle" {{ if .s.ShowAdsOnMainPage }}checked{{ end }} />
     </label>
 
     <label class="form-control">
@@ -73,10 +80,40 @@
       <div class="label"><span class="label-text">Connected Timeout (sec)</span></div>
       <input class="input input-bordered" name="connected_timeout" value="{{ .s.ConnectedTimeoutSeconds }}" />
     </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">تعداد کانفیگ برای Splash Conf</span></div>
+      <input class="input input-bordered" type="number" min="1" name="splash_conf_count" value="{{ if gt .s.SplashConfCount 0 }}{{ .s.SplashConfCount }}{{ else }}4{{ end }}" />
+    </label>
   </div>
 
   <div class="flex gap-2">
-    <button class="btn btn-primary" type="submit">ذخیره</button>
+    <button class="btn btn-primary" type="submit">ذخیره تغییرات</button>
+    <button class="btn btn-error" type="submit" formaction="/admin/settings/delete" formmethod="post" onclick="return confirm('تنظیمات حذف شود و به حالت پیش‌فرض برگردد؟')">حذف</button>
     <a class="btn" href="/">بازگشت</a>
   </div>
 </form>
+
+<script>
+  (function () {
+    const toggleAll = document.getElementById("toggleAllSettings");
+    if (!toggleAll) return;
+    const toggles = Array.from(document.querySelectorAll(".js-setting-toggle"));
+    if (toggles.length === 0) return;
+
+    const syncMaster = () => {
+      const checkedCount = toggles.filter((t) => t.checked).length;
+      toggleAll.indeterminate = checkedCount > 0 && checkedCount < toggles.length;
+      toggleAll.checked = checkedCount === toggles.length;
+    };
+
+    toggleAll.addEventListener("change", () => {
+      toggles.forEach((t) => {
+        t.checked = toggleAll.checked;
+      });
+      toggleAll.indeterminate = false;
+    });
+
+    toggles.forEach((t) => t.addEventListener("change", syncMaster));
+    syncMaster();
+  })();
+</script>

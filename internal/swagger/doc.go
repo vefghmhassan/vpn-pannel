@@ -162,7 +162,9 @@ const docTemplate = `{
       "type": "object",
       "properties": {
         "no_ads": {"$ref": "#/definitions/V2RayNode"},
-        "ads": {"$ref": "#/definitions/V2RayNode"}
+        "ads": {"$ref": "#/definitions/V2RayNode"},
+        "no_ads_list": {"type": "array", "items": {"$ref": "#/definitions/V2RayNode"}},
+        "ads_list": {"type": "array", "items": {"$ref": "#/definitions/V2RayNode"}}
       }
     },
     "HeartbeatRequest": {
@@ -199,6 +201,7 @@ const docTemplate = `{
         "ads_reward_unit": {"type": "string"},
         "ads_unit_open": {"type": "string"},
         "ads_application_id": {"type": "string"},
+        "splash_conf_count": {"type": "integer"},
         "updated_app": {"type": "boolean"},
         "privacy_url": {"type": "string"},
         "connected_timeout": {"type": "integer"}

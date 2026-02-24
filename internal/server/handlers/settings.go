@@ -59,8 +59,20 @@ func SettingsUpdate(c *fiber.Ctx) error {
 			s.ConnectedTimeoutSeconds = n
 		}
 	}
+	if v := c.FormValue("splash_conf_count"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			s.SplashConfCount = n
+		}
+	}
 
 	if err := database.DB.Save(&s).Error; err != nil {
+		return fiber.ErrInternalServerError
+	}
+	return c.Redirect("/admin/settings")
+}
+
+func SettingsDelete(c *fiber.Ctx) error {
+	if err := database.DB.Delete(&models.AppSettings{}, 1).Error; err != nil {
 		return fiber.ErrInternalServerError
 	}
 	return c.Redirect("/admin/settings")

@@ -95,6 +95,7 @@ func seedSettings() error {
 		AdsApplicationID:        "",
 		PrivacyURL:              "",
 		ConnectedTimeoutSeconds: 15,
+		SplashConfCount:         4,
 	}
 	return DB.Create(&defaults).Error
 }

@@ -35,4 +35,6 @@ type AppSettings struct {
 	PrivacyURL string `gorm:"size:255" json:"privacyUrl"`
 	// Timeout (seconds) for considering a connection as established
 	ConnectedTimeoutSeconds int `gorm:"not null;default:15" json:"connectedTimeout"`
+	// Number of configs to return per splash/conf request (per ads/no-ads)
+	SplashConfCount int `gorm:"not null;default:4" json:"splashConfCount"`
 }

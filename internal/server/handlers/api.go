@@ -4,16 +4,18 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
-	"vpnpannel/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 
 	"vpnpannel/internal/database"
 	"vpnpannel/internal/models"
 	"vpnpannel/internal/services"
+	"vpnpannel/internal/utils"
 )
 
 // ApiAuth middleware for mobile API
@@ -172,11 +174,13 @@ type ConfRequest struct {
 }
 
 type ConfResponse struct {
-	NoAds models.V2RayNode `json:"no_ads"`
-	Ads   models.V2RayNode `json:"ads"`
+	NoAds     models.V2RayNode   `json:"no_ads"`
+	Ads       models.V2RayNode   `json:"ads"`
+	NoAdsList []models.V2RayNode `json:"no_ads_list"`
+	AdsList   []models.V2RayNode `json:"ads_list"`
 }
 
-// ApiSplashConf returns two nodes per request: one ads=false and one ads=true.
+// ApiSplashConf returns nodes per request: lists for ads=false and ads=true.
 // It leases each node to the requester for 30 minutes when possible.
 func ApiSplashConf(c *fiber.Ctx) error {
 	var in ConfRequest
@@ -184,15 +188,28 @@ func ApiSplashConf(c *fiber.Ctx) error {
 	reqKey := requestKey(c, in.ClientKey, in.DeviceID)
 	now := time.Now()
 
-	noAds, err := findOrAssignNode(reqKey, false, now)
+	count := 4
+	var s models.AppSettings
+	if err := database.DB.First(&s, 1).Error; err == nil && s.SplashConfCount > 0 {
+		count = s.SplashConfCount
+	}
+
+	noAdsList, err := findOrAssignNodes(reqKey, false, count, now)
 	if err != nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "no non-ads nodes available")
 	}
-	ads, err := findOrAssignNode(reqKey, true, now)
+	adsList, err := findOrAssignNodes(reqKey, true, count, now)
 	if err != nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "no ads nodes available")
 	}
-	return c.JSON(ConfResponse{NoAds: noAds, Ads: ads})
+	resp := ConfResponse{NoAdsList: noAdsList, AdsList: adsList}
+	if len(noAdsList) > 0 {
+		resp.NoAds = noAdsList[0]
+	}
+	if len(adsList) > 0 {
+		resp.Ads = adsList[0]
+	}
+	return c.JSON(resp)
 }
 
 func requestKey(c *fiber.Ctx, clientKey string, deviceID string) string {
@@ -204,13 +221,42 @@ func requestKey(c *fiber.Ctx, clientKey string, deviceID string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func findOrAssignNode(reqKey string, ads bool, now time.Time) (models.V2RayNode, error) {
+func findOrAssignNodes(reqKey string, ads bool, count int, now time.Time) ([]models.V2RayNode, error) {
+	if count <= 0 {
+		count = 1
+	}
+	nodes := make([]models.V2RayNode, 0, count)
+	exclude := make([]uint, 0, count)
+	for i := 0; i < count; i++ {
+		slotKey := reqKey
+		if i > 0 {
+			slotKey = fmt.Sprintf("%s:%d", reqKey, i)
+		}
+		node, err := findOrAssignNode(slotKey, ads, now, exclude)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				if len(nodes) == 0 {
+					return nil, err
+				}
+				break
+			}
+			return nil, err
+		}
+		nodes = append(nodes, node)
+		exclude = append(exclude, node.ID)
+	}
+	return nodes, nil
+}
+
+func findOrAssignNode(reqKey string, ads bool, now time.Time, excludeIDs []uint) (models.V2RayNode, error) {
 	var lease models.V2RayLease
 	if err := database.DB.Where("request_key = ? AND ads = ? AND expires_at > ?", reqKey, ads, now).
 		Limit(1).Find(&lease).Error; err == nil && lease.ID != 0 {
 		var node models.V2RayNode
-		if err := database.DB.Where("id = ? AND is_active = ?", lease.NodeID, true).First(&node).Error; err == nil {
-			return node, nil
+		if !containsUint(excludeIDs, lease.NodeID) {
+			if err := database.DB.Where("id = ? AND is_active = ?", lease.NodeID, true).First(&node).Error; err == nil {
+				return node, nil
+			}
 		}
 	}
 
@@ -225,9 +271,16 @@ func findOrAssignNode(reqKey string, ads bool, now time.Time) (models.V2RayNode,
 	if len(leasedIDs) > 0 {
 		q = q.Where("id NOT IN ?", leasedIDs)
 	}
+	if len(excludeIDs) > 0 {
+		q = q.Where("id NOT IN ?", excludeIDs)
+	}
 	if err := q.Order("RANDOM()").First(&node).Error; err != nil {
 		// Fallback: choose any active node (even if leased)
-		if err2 := database.DB.Where("is_active = ? AND ads = ?", true, ads).Order("RANDOM()").First(&node).Error; err2 != nil {
+		q2 := database.DB.Where("is_active = ? AND ads = ?", true, ads)
+		if len(excludeIDs) > 0 {
+			q2 = q2.Where("id NOT IN ?", excludeIDs)
+		}
+		if err2 := q2.Order("RANDOM()").First(&node).Error; err2 != nil {
 			return models.V2RayNode{}, err2
 		}
 	}
@@ -244,6 +297,15 @@ func findOrAssignNode(reqKey string, ads bool, now time.Time) (models.V2RayNode,
 	}
 
 	return node, nil
+}
+
+func containsUint(list []uint, v uint) bool {
+	for _, item := range list {
+		if item == v {
+			return true
+		}
+	}
+	return false
 }
 
 func ApiCreateOutage(c *fiber.Ctx) error {
@@ -379,6 +441,7 @@ func ApiSettings(c *fiber.Ctx) error {
 			AdsAppOpenEnabled:       false,
 			CurrentVersion:          "1.0.0",
 			ConnectedTimeoutSeconds: 15,
+			SplashConfCount:         4,
 		}
 	}
 	return c.JSON(fiber.Map{
@@ -395,6 +458,7 @@ func ApiSettings(c *fiber.Ctx) error {
 		"updated_app":           s.UpdateEnable,
 		"privacy_url":           s.PrivacyURL,
 		"connected_timeout":     s.ConnectedTimeoutSeconds,
+		"splash_conf_count":     s.SplashConfCount,
 	})
 }
 
