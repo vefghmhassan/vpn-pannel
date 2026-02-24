@@ -47,6 +47,7 @@ func RegisterRoutes(app *fiber.App) {
 	admin.Post("/v2ray/new", handlers.V2RayCreate)
 	admin.Get("/v2ray/:id/edit", handlers.V2RayEditPage)
 	admin.Post("/v2ray/:id/edit", handlers.V2RayUpdate)
+	admin.Post("/v2ray/batch-delete", handlers.V2RayBatchDelete)
 	admin.Post("/v2ray/:id/delete", handlers.V2RayDelete)
 	// Outages
 	admin.Get("/outages", handlers.OutagesList)

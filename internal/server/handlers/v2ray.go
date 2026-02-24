@@ -17,11 +17,46 @@ import (
 )
 
 func V2RayList(c *fiber.Ctx) error {
+    address := strings.TrimSpace(c.Query("address"))
+    protocol := strings.TrimSpace(c.Query("protocol"))
+    adsFilter := strings.TrimSpace(c.Query("ads"))
+    activeFilter := strings.TrimSpace(c.Query("active"))
+
     var nodes []models.V2RayNode
-    database.DB.Order("id desc").Find(&nodes)
+    q := database.DB.Model(&models.V2RayNode{})
+    if address != "" {
+        q = q.Where("address = ?", address)
+    }
+    if protocol != "" {
+        q = q.Where("protocol = ?", protocol)
+    }
+    if adsFilter == "true" {
+        q = q.Where("ads = ?", true)
+    } else if adsFilter == "false" {
+        q = q.Where("ads = ?", false)
+    }
+    if activeFilter == "true" {
+        q = q.Where("is_active = ?", true)
+    } else if activeFilter == "false" {
+        q = q.Where("is_active = ?", false)
+    }
+    q.Order("id desc").Find(&nodes)
+
+    var addresses []string
+    _ = database.DB.Model(&models.V2RayNode{}).Distinct().Order("address").Pluck("address", &addresses).Error
+    var protocols []string
+    _ = database.DB.Model(&models.V2RayNode{}).Distinct().Order("protocol").Pluck("protocol", &protocols).Error
     return c.Render("v2ray/index", fiber.Map{
         "title": "V2Ray Nodes",
         "nodes": nodes,
+        "addresses": addresses,
+        "protocols": protocols,
+        "filters": fiber.Map{
+            "address": address,
+            "protocol": protocol,
+            "ads": adsFilter,
+            "active": activeFilter,
+        },
     })
 }
 
@@ -274,5 +309,19 @@ func v2rayNameExistsExcept(name string, id uint) bool {
 func V2RayDelete(c *fiber.Ctx) error {
     id, _ := strconv.Atoi(c.Params("id"))
     database.DB.Delete(&models.V2RayNode{}, id)
+    return c.Redirect("/admin/v2ray")
+}
+
+func V2RayBatchDelete(c *fiber.Ctx) error {
+    var in struct {
+        IDs []uint `form:"ids"`
+    }
+    if err := c.BodyParser(&in); err != nil {
+        return fiber.ErrBadRequest
+    }
+    if len(in.IDs) == 0 {
+        return c.Redirect("/admin/v2ray")
+    }
+    database.DB.Where("id IN ?", in.IDs).Delete(&models.V2RayNode{})
     return c.Redirect("/admin/v2ray")
 }

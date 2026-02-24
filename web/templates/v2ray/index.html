@@ -2,16 +2,67 @@
   <h2 class="text-xl font-bold">V2Ray Nodes</h2>
   <a href="/admin/v2ray/new" class="btn btn-primary">افزودن</a>
 </div>
+
+<div class="card bg-base-100 shadow mb-4">
+  <form method="get" action="/admin/v2ray" class="card-body p-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <label class="form-control">
+        <div class="label"><span class="label-text">آدرس</span></div>
+        <select name="address" class="select select-bordered select-sm">
+          <option value="">همه</option>
+          {{ range .addresses }}
+            <option value="{{ . }}" {{ if eq (index $.filters "address") . }}selected{{ end }}>{{ . }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">پروتکل</span></div>
+        <select name="protocol" class="select select-bordered select-sm">
+          <option value="">همه</option>
+          {{ range .protocols }}
+            <option value="{{ . }}" {{ if eq (index $.filters "protocol") . }}selected{{ end }}>{{ . }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">Ads</span></div>
+        <select name="ads" class="select select-bordered select-sm">
+          <option value="">همه</option>
+          <option value="true" {{ if eq (index $.filters "ads") "true" }}selected{{ end }}>Ads</option>
+          <option value="false" {{ if eq (index $.filters "ads") "false" }}selected{{ end }}>No Ads</option>
+        </select>
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">فعال</span></div>
+        <select name="active" class="select select-bordered select-sm">
+          <option value="">همه</option>
+          <option value="true" {{ if eq (index $.filters "active") "true" }}selected{{ end }}>فعال</option>
+          <option value="false" {{ if eq (index $.filters "active") "false" }}selected{{ end }}>غیرفعال</option>
+        </select>
+      </label>
+      <div class="flex items-center gap-2">
+        <button class="btn btn-sm btn-primary" type="submit">اعمال</button>
+        <a class="btn btn-sm" href="/admin/v2ray">پاک کردن</a>
+      </div>
+    </div>
+  </form>
+</div>
+
 <div class="card bg-base-100 shadow">
-  <div class="card-body">
+  <form class="card-body" method="post" action="/admin/v2ray/batch-delete" id="batchDeleteForm">
+    <div class="flex items-center gap-2 mb-3">
+      <button class="btn btn-sm btn-error" type="submit" onclick="return confirm('آیتم‌های انتخاب‌شده حذف شوند؟')">حذف انتخاب‌شده‌ها</button>
+      <span class="text-xs opacity-70">انتخاب تکی یا همه از چک‌باکس‌ها</span>
+    </div>
     <div class="overflow-x-auto">
       <table class="table">
         <thead>
-          <tr><th>ID</th><th>نام</th><th>آدرس</th><th>پورت</th><th>پروتکل</th><th>تگ‌ها</th><th>Ads</th><th>فعال</th><th>عملیات</th></tr>
+          <tr><th><input id="selectAllRows" type="checkbox" class="checkbox checkbox-sm" /></th><th>ID</th><th>نام</th><th>آدرس</th><th>پورت</th><th>پروتکل</th><th>تگ‌ها</th><th>Ads</th><th>فعال</th><th>عملیات</th></tr>
         </thead>
         <tbody>
           {{ range .nodes }}
           <tr>
+            <td><input type="checkbox" name="ids" value="{{ .ID }}" class="checkbox checkbox-sm js-row-select" /></td>
             <td>{{ .ID }}</td>
             <td>{{ .Name }}</td>
             <td>{{ .Address }}</td>
@@ -23,9 +74,7 @@
             <td>
               <div class="flex items-center gap-2">
                 <a class="btn btn-xs" href="/admin/v2ray/{{ .ID }}/edit">ویرایش</a>
-                <form method="post" action="/admin/v2ray/{{ .ID }}/delete">
-                  <button class="btn btn-xs btn-error" onclick="return confirm('حذف شود؟')">حذف</button>
-                </form>
+                <button class="btn btn-xs btn-error" type="submit" formaction="/admin/v2ray/{{ .ID }}/delete" formmethod="post" onclick="return confirm('حذف شود؟')">حذف</button>
               </div>
             </td>
           </tr>
@@ -33,7 +82,30 @@
         </tbody>
       </table>
     </div>
-  </div>
+  </form>
 </div>
 
+<script>
+  (function () {
+    const selectAll = document.getElementById("selectAllRows");
+    if (!selectAll) return;
+    const rows = Array.from(document.querySelectorAll(".js-row-select"));
+    if (rows.length === 0) return;
 
+    const syncMaster = () => {
+      const checked = rows.filter((r) => r.checked).length;
+      selectAll.indeterminate = checked > 0 && checked < rows.length;
+      selectAll.checked = checked === rows.length;
+    };
+
+    selectAll.addEventListener("change", () => {
+      rows.forEach((r) => {
+        r.checked = selectAll.checked;
+      });
+      selectAll.indeterminate = false;
+    });
+
+    rows.forEach((r) => r.addEventListener("change", syncMaster));
+    syncMaster();
+  })();
+</script>
