@@ -36,6 +36,8 @@ func RegisterRoutes(app *fiber.App) {
 	app.Get("/", handlers.HomePage)
 	admin.Post("/settings", handlers.SettingsUpdate)
 	admin.Post("/settings/delete", handlers.SettingsDelete)
+	admin.Get("/settings/export", handlers.SettingsExport)
+	admin.Post("/settings/import", handlers.SettingsImport)
 	// Users
 	admin.Get("/users", handlers.UsersList)
 	admin.Get("/users/active", handlers.UsersActive)

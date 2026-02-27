@@ -82,7 +82,7 @@
     </label>
     <label class="form-control">
       <div class="label"><span class="label-text">تعداد کانفیگ برای Splash Conf</span></div>
-      <input class="input input-bordered" type="number" min="1" name="splash_conf_count" value="{{ if gt .s.SplashConfCount 0 }}{{ .s.SplashConfCount }}{{ else }}4{{ end }}" />
+      <input class="input input-bordered" type="number" min="2" name="splash_conf_count" value="{{ if gt .s.SplashConfCount 0 }}{{ .s.SplashConfCount }}{{ else }}4{{ end }}" />
     </label>
   </div>
 
@@ -92,6 +92,18 @@
     <a class="btn" href="/">بازگشت</a>
   </div>
 </form>
+
+<div class="bg-base-100 rounded-box shadow p-3 mb-4">
+  <h2 class="text-xl font-bold mb-2">بکاپ و بازیابی</h2>
+  <p class="text-sm opacity-70 mb-3">خروجی گرفتن و وارد کردن بکاپ فقط به‌صورت ادغام انجام می‌شود و داده‌های فعلی حذف نمی‌شوند.</p>
+  <div class="flex flex-wrap gap-2 items-center">
+    <a class="btn btn-secondary" href="/admin/settings/export">Export</a>
+    <form method="post" action="/admin/settings/import" enctype="multipart/form-data" class="flex flex-wrap gap-2 items-center" onsubmit="return confirm('بکاپ وارد شود و با داده‌های فعلی ادغام شود؟')">
+      <input class="file-input file-input-bordered" type="file" name="backup_file" accept=".json,application/json" required />
+      <button class="btn btn-primary" type="submit">Import</button>
+    </form>
+  </div>
+</div>
 
 <script>
   (function () {
