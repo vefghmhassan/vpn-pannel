@@ -65,6 +65,10 @@
       <input class="input input-bordered" name="ads_reward_unit" value="{{ .s.AdsRewardUnit }}" />
     </label>
     <label class="form-control">
+      <div class="label"><span class="label-text">درصد نمایش ریوارد (۰ تا ۱۰۰)</span></div>
+      <input class="input input-bordered" type="number" min="0" max="100" name="reward_display_percent" value="{{ .s.RewardDisplayPercent }}" />
+    </label>
+    <label class="form-control">
       <div class="label"><span class="label-text">Ads_unit_Open</span></div>
       <input class="input input-bordered" name="ads_unit_open" value="{{ .s.AdsUnitOpen }}" />
     </label>

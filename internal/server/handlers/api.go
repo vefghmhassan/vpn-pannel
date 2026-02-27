@@ -193,12 +193,16 @@ func ApiSplashConf(c *fiber.Ctx) error {
 	if err := database.DB.First(&s, 1).Error; err == nil && s.SplashConfCount > 0 {
 		count = s.SplashConfCount
 	}
+	if count < 2 {
+		count = 2
+	}
 
-	noAdsList, err := findOrAssignNodes(reqKey, false, count, now)
+	noAdsCount := count - 1
+	noAdsList, err := findOrAssignNodes(reqKey, false, noAdsCount, now)
 	if err != nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "no non-ads nodes available")
 	}
-	adsList, err := findOrAssignNodes(reqKey, true, count, now)
+	adsList, err := findOrAssignNodes(reqKey, true, 1, now)
 	if err != nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "no ads nodes available")
 	}
@@ -223,7 +227,7 @@ func requestKey(c *fiber.Ctx, clientKey string, deviceID string) string {
 
 func findOrAssignNodes(reqKey string, ads bool, count int, now time.Time) ([]models.V2RayNode, error) {
 	if count <= 0 {
-		count = 1
+		return []models.V2RayNode{}, nil
 	}
 	nodes := make([]models.V2RayNode, 0, count)
 	exclude := make([]uint, 0, count)
@@ -450,6 +454,7 @@ func ApiSettings(c *fiber.Ctx) error {
 		"show_ads_on_main_page": s.ShowAdsOnMainPage,
 		"ads_reward_enabled":    s.AdsRewardEnabled,
 		"ads_app_open_enabled":  s.AdsAppOpenEnabled,
+		"reward_display_percent": s.RewardDisplayPercent,
 		"current_version":       s.CurrentVersion,
 		"ad_unit_id":            s.AdUnitID,
 		"ads_reward_unit":       s.AdsRewardUnit,

@@ -59,8 +59,21 @@ func SettingsUpdate(c *fiber.Ctx) error {
 			s.ConnectedTimeoutSeconds = n
 		}
 	}
+	if v := c.FormValue("reward_display_percent"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			if n < 0 {
+				n = 0
+			} else if n > 100 {
+				n = 100
+			}
+			s.RewardDisplayPercent = n
+		}
+	}
 	if v := c.FormValue("splash_conf_count"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			if n < 2 {
+				n = 2
+			}
 			s.SplashConfCount = n
 		}
 	}

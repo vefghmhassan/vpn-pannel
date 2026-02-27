@@ -34,6 +34,7 @@ type AppSettingsBackup struct {
 	ShowAdsOnMainPage       bool   `json:"show_ads_on_main_page"`
 	AdsRewardEnabled        bool   `json:"ads_reward_enabled"`
 	AdsAppOpenEnabled       bool   `json:"ads_app_open_enabled"`
+	RewardDisplayPercent    int    `json:"reward_display_percent"`
 	UpdateEnable            bool   `json:"update_enable"`
 	CurrentVersion          string `json:"current_version"`
 	AdUnitID                string `json:"ad_unit_id"`
@@ -105,6 +106,7 @@ func SettingsExport(c *fiber.Ctx) error {
 			ShowAdsOnMainPage:       s.ShowAdsOnMainPage,
 			AdsRewardEnabled:        s.AdsRewardEnabled,
 			AdsAppOpenEnabled:       s.AdsAppOpenEnabled,
+			RewardDisplayPercent:    s.RewardDisplayPercent,
 			UpdateEnable:            s.UpdateEnable,
 			CurrentVersion:          s.CurrentVersion,
 			AdUnitID:                s.AdUnitID,
@@ -227,6 +229,7 @@ func applyAppSettings(dst *models.AppSettings, in AppSettingsBackup) {
 	dst.ShowAdsOnMainPage = in.ShowAdsOnMainPage
 	dst.AdsRewardEnabled = in.AdsRewardEnabled
 	dst.AdsAppOpenEnabled = in.AdsAppOpenEnabled
+	dst.RewardDisplayPercent = in.RewardDisplayPercent
 	dst.UpdateEnable = in.UpdateEnable
 	dst.CurrentVersion = in.CurrentVersion
 	dst.AdUnitID = in.AdUnitID

@@ -19,6 +19,8 @@ type AppSettings struct {
 	AdsRewardEnabled bool `gorm:"not null;default:false" json:"adsRewardEnabled"`
 	// Whether app-open ads are enabled
 	AdsAppOpenEnabled bool `gorm:"not null;default:false" json:"adsAppOpenEnabled"`
+	// Percent (0-100) of times to show reward ads
+	RewardDisplayPercent int `gorm:"not null;default:100" json:"rewardDisplayPercent"`
 	UpdateEnable      bool `gorm:"not null;default:true" json:"updateEnable"`
 	// Current application version string (e.g., 1.0.0)
 	CurrentVersion string `gorm:"size:32;not null;default:'1.0.0'" json:"currentVersion"`

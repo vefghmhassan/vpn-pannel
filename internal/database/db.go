@@ -87,6 +87,7 @@ func seedSettings() error {
 		ShowAdsOnMainPage:       false,
 		AdsRewardEnabled:        false,
 		AdsAppOpenEnabled:       false,
+		RewardDisplayPercent:    100,
 		UpdateEnable:            true,
 		CurrentVersion:          "1.0.0",
 		AdUnitID:                "",
