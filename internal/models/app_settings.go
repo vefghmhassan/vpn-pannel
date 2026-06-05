@@ -20,8 +20,8 @@ type AppSettings struct {
 	// Whether app-open ads are enabled
 	AdsAppOpenEnabled bool `gorm:"not null;default:false" json:"adsAppOpenEnabled"`
 	// Percent (0-100) of times to show reward ads
-	RewardDisplayPercent int `gorm:"not null;default:100" json:"rewardDisplayPercent"`
-	UpdateEnable      bool `gorm:"not null;default:true" json:"updateEnable"`
+	RewardDisplayPercent int  `gorm:"not null;default:100" json:"rewardDisplayPercent"`
+	UpdateEnable         bool `gorm:"not null;default:true" json:"updateEnable"`
 	// Current application version string (e.g., 1.0.0)
 	CurrentVersion string `gorm:"size:32;not null;default:'1.0.0'" json:"currentVersion"`
 
@@ -38,5 +38,7 @@ type AppSettings struct {
 	// Timeout (seconds) for considering a connection as established
 	ConnectedTimeoutSeconds int `gorm:"not null;default:15" json:"connectedTimeout"`
 	// Number of configs to return per splash/conf request (per ads/no-ads)
-	SplashConfCount int `gorm:"not null;default:4" json:"splashConfCount"`
+	SplashConfCount int    `gorm:"not null;default:4" json:"splashConfCount"`
+	AppTimer        int    `gorm:"not null;default:30" json:"appTimer"`
+	Domain          string `gorm:"size:128" json:"domain"`
 }

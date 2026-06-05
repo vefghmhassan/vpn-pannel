@@ -48,6 +48,14 @@ func SettingsUpdate(c *fiber.Ctx) error {
 	if v := c.FormValue("ads_unit_open"); v != "" {
 		s.AdsUnitOpen = v
 	}
+	if v := c.FormValue("app_domain"); v != "" {
+		s.Domain = v
+	}
+	if v := c.FormValue("app_timer"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			s.AppTimer = n
+		}
+	}
 	if v := c.FormValue("ads_application_id"); v != "" {
 		s.AdsApplicationID = v
 	}
