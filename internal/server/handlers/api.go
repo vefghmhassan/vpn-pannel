@@ -446,6 +446,8 @@ func ApiSettings(c *fiber.Ctx) error {
 			CurrentVersion:          "1.0.0",
 			ConnectedTimeoutSeconds: 15,
 			SplashConfCount:         4,
+			ConnectionTimer:         1000,
+			CurrentVersionCode:      4000011,
 		}
 	}
 	return c.JSON(fiber.Map{
@@ -462,8 +464,12 @@ func ApiSettings(c *fiber.Ctx) error {
 		"ads_application_id":    s.AdsApplicationID,
 		"updated_app":           s.UpdateEnable,
 		"privacy_url":           s.PrivacyURL,
-		"connected_timeout":     s.ConnectedTimeoutSeconds,
-		"splash_conf_count":     s.SplashConfCount,
+		"connected_timeout":      s.ConnectedTimeoutSeconds,
+		"splash_conf_count":      s.SplashConfCount,
+		"link_app":               s.LinkApp,
+		"release_notes":          s.ReleaseNotes,
+		"connection_timer":       s.ConnectionTimer,
+		"current_version_code":   s.CurrentVersionCode,
 	})
 }
 

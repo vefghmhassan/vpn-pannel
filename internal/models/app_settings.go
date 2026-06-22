@@ -40,5 +40,9 @@ type AppSettings struct {
 	// Number of configs to return per splash/conf request (per ads/no-ads)
 	SplashConfCount int    `gorm:"not null;default:4" json:"splashConfCount"`
 	AppTimer        int    `gorm:"not null;default:30" json:"appTimer"`
-	Domain          string `gorm:"size:128" json:"domain"`
+	Domain            string `gorm:"size:128" json:"domain"`
+	LinkApp           string `gorm:"size:255" json:"linkApp"`
+	ReleaseNotes      string `gorm:"size:1024" json:"releaseNotes"`
+	ConnectionTimer   int64  `gorm:"not null;default:1000" json:"connectionTimer"`
+	CurrentVersionCode int   `gorm:"not null;default:4000011" json:"currentVersionCode"`
 }

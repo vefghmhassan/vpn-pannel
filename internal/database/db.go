@@ -97,6 +97,10 @@ func seedSettings() error {
 		PrivacyURL:              "",
 		ConnectedTimeoutSeconds: 15,
 		SplashConfCount:         4,
+		LinkApp:                 "",
+		ReleaseNotes:            "",
+		ConnectionTimer:         1000,
+		CurrentVersionCode:      4000011,
 	}
 	return DB.Create(&defaults).Error
 }

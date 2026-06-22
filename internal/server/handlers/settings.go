@@ -85,6 +85,22 @@ func SettingsUpdate(c *fiber.Ctx) error {
 			s.SplashConfCount = n
 		}
 	}
+	if v := c.FormValue("link_app"); v != "" {
+		s.LinkApp = v
+	}
+	if v := c.FormValue("release_notes"); v != "" {
+		s.ReleaseNotes = v
+	}
+	if v := c.FormValue("connection_timer"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			s.ConnectionTimer = n
+		}
+	}
+	if v := c.FormValue("current_version_code"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			s.CurrentVersionCode = n
+		}
+	}
 
 	if err := database.DB.Save(&s).Error; err != nil {
 		return fiber.ErrInternalServerError

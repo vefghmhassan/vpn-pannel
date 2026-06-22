@@ -96,6 +96,22 @@
       <div class="label"><span class="label-text">تعداد کانفیگ برای Splash Conf</span></div>
       <input class="input input-bordered" type="number" min="2" name="splash_conf_count" value="{{ if gt .s.SplashConfCount 0 }}{{ .s.SplashConfCount }}{{ else }}4{{ end }}" />
     </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">لینک اپلیکیشن (Link App)</span></div>
+      <input class="input input-bordered" name="link_app" value="{{ .s.LinkApp }}" placeholder="https://..." />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">یادداشت‌های نسخه (Release Notes)</span></div>
+      <input class="input input-bordered" name="release_notes" value="{{ .s.ReleaseNotes }}" />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">تایمر اتصال (Connection Timer ms)</span></div>
+      <input class="input input-bordered" type="number" min="0" name="connection_timer" value="{{ .s.ConnectionTimer }}" />
+    </label>
+    <label class="form-control">
+      <div class="label"><span class="label-text">کد نسخه فعلی (Version Code)</span></div>
+      <input class="input input-bordered" type="number" min="0" name="current_version_code" value="{{ .s.CurrentVersionCode }}" />
+    </label>
   </div>
 
   <div class="flex gap-2">

@@ -44,6 +44,10 @@ type AppSettingsBackup struct {
 	PrivacyURL              string `json:"privacy_url"`
 	ConnectedTimeoutSeconds int    `json:"connected_timeout"`
 	SplashConfCount         int    `json:"splash_conf_count"`
+	LinkApp                 string `json:"link_app"`
+	ReleaseNotes            string `json:"release_notes"`
+	ConnectionTimer         int64  `json:"connection_timer"`
+	CurrentVersionCode      int    `json:"current_version_code"`
 }
 
 type V2RayNodeBackup struct {
@@ -116,6 +120,10 @@ func SettingsExport(c *fiber.Ctx) error {
 			PrivacyURL:              s.PrivacyURL,
 			ConnectedTimeoutSeconds: s.ConnectedTimeoutSeconds,
 			SplashConfCount:         s.SplashConfCount,
+			LinkApp:                 s.LinkApp,
+			ReleaseNotes:            s.ReleaseNotes,
+			ConnectionTimer:         s.ConnectionTimer,
+			CurrentVersionCode:      s.CurrentVersionCode,
 		},
 		V2RayNodes:      make([]V2RayNodeBackup, 0, len(nodes)),
 		SplashProtocols: make([]SplashProtocolBackup, 0, len(splash)),
@@ -239,6 +247,10 @@ func applyAppSettings(dst *models.AppSettings, in AppSettingsBackup) {
 	dst.PrivacyURL = in.PrivacyURL
 	dst.ConnectedTimeoutSeconds = in.ConnectedTimeoutSeconds
 	dst.SplashConfCount = in.SplashConfCount
+	dst.LinkApp = in.LinkApp
+	dst.ReleaseNotes = in.ReleaseNotes
+	dst.ConnectionTimer = in.ConnectionTimer
+	dst.CurrentVersionCode = in.CurrentVersionCode
 }
 
 func upsertV2RayNodes(tx *gorm.DB, items []V2RayNodeBackup) error {
