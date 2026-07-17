@@ -1,1461 +1,518 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fa" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <title>NYX VPN – Free, Fast & No-Log VPN</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="NYX VPN – Free, high-speed and no-logs VPN with premium UI and secure servers.">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zex VPN - اینترنت پایدار، امن و سریع</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- AOS Animation Library -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Vazirmatn Font (Persian) -->
+  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" />
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-
-    :root {
-      --bg: #020617;
-      --bg-alt: #02091c;
-      --primary: #6366f1;
-      --primary-soft: rgba(99,102,241,0.4);
-      --accent: #22d3ee;
-      --accent-soft: rgba(34,211,238,0.45);
-      --success: #22c55e;
-      --danger: #f97373;
-      --text: #e5e7eb;
-      --muted: #9ca3af;
-      --card-bg: rgba(15,23,42,0.88);
-      --border-soft: rgba(148,163,184,0.28);
-      --radius-xl: 22px;
-      --shadow-deep: 0 26px 70px rgba(15,23,42,0.95);
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
     body {
-      font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      background: radial-gradient(circle at top, #020617 0, #000 55%);
-      color: var(--text);
-      line-height: 1.6;
+      font-family: 'Vazirmatn', sans-serif;
+      background-color: #050505;
+      color: #ffffff;
       overflow-x: hidden;
     }
 
-    /* === BACKGROUND 3D WAVES / BLOBS === */
-    .bg-layer {
-      position: fixed;
-      inset: -120px;
-      z-index: -2;
-      background:
-        radial-gradient(circle at 10% 20%, #1f2937 0, transparent 55%),
-        radial-gradient(circle at 80% 0, #0b1120 0, transparent 55%),
-        radial-gradient(circle at 0 100%, #020617 0, #000 70%);
+    :root {
+      --zex-green: #009966;
+      --zex-green-light: #00cc88;
+      --zex-green-dark: #007a51;
     }
 
-    .bg-shape {
-      position: fixed;
-      border-radius: 999px;
-      filter: blur(50px);
-      opacity: 0.7;
-      mix-blend-mode: screen;
+    .glow-text { text-shadow: 0 0 15px rgba(0, 153, 102, 0.8); }
+
+    .neon-border {
+      box-shadow: 0 0 15px rgba(0, 153, 102, 0.3), inset 0 0 15px rgba(0, 153, 102, 0.1);
+      border: 1px solid rgba(0, 153, 102, 0.3);
+    }
+
+    .bg-grid {
+      background-image: linear-gradient(rgba(0, 153, 102, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 153, 102, 0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+    }
+
+    .glass-card {
+      background: rgba(10, 15, 15, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .glass-card:hover {
+      transform: translateY(-10px) scale(1.02);
+      border-color: rgba(0, 153, 102, 0.5);
+      box-shadow: 0 20px 30px -10px rgba(0, 153, 102, 0.3);
+    }
+
+    .float { animation: floating 4s ease-in-out infinite; }
+    @keyframes floating {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-15px); }
+      100% { transform: translateY(0px); }
+    }
+
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #050505; }
+    ::-webkit-scrollbar-thumb { background: var(--zex-green); border-radius: 10px; }
+
+    .logo-shadow { filter: drop-shadow(0 0 10px rgba(0, 153, 102, 0.5)); }
+
+    .zex-btn {
+      background: linear-gradient(to right, var(--zex-green-dark), var(--zex-green));
+      transition: all 0.3s ease;
+    }
+    .zex-btn:hover {
+      background: linear-gradient(to right, var(--zex-green), var(--zex-green-light));
+      box-shadow: 0 0 25px rgba(0, 153, 102, 0.6);
+      transform: translateY(-2px);
+    }
+
+    /* VPN Button Pulse Animation */
+    .pulse-active {
+      animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(0, 204, 136, 0.7), 0 0 40px rgba(0, 153, 102, 0.6); transform: scale(1); }
+      70% { box-shadow: 0 0 0 20px rgba(0, 204, 136, 0), 0 0 40px rgba(0, 153, 102, 0.6); transform: scale(1.05); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 204, 136, 0), 0 0 40px rgba(0, 153, 102, 0.6); transform: scale(1); }
+    }
+
+    /* Bottom Sheet Styles */
+    .bottom-sheet {
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      transform: translateY(100%);
+    }
+    .bottom-sheet.active { transform: translateY(0); }
+
+    .sheet-overlay {
+      transition: opacity 0.3s ease;
+      opacity: 0;
       pointer-events: none;
-      z-index: -1;
-      transition: transform 0.6s ease-out;
     }
-    .bg-shape-1 {
-      width: 380px;
-      height: 380px;
-      background: radial-gradient(circle, rgba(37,99,235,0.9), transparent 60%);
-      top: -120px;
-      left: -80px;
-      animation: float-1 18s ease-in-out infinite alternate;
-    }
-    .bg-shape-2 {
-      width: 420px;
-      height: 420px;
-      background: radial-gradient(circle, rgba(34,211,238,0.9), transparent 60%);
-      bottom: -140px;
-      right: -80px;
-      animation: float-2 22s ease-in-out infinite alternate;
-    }
-    .bg-shape-3 {
-      width: 320px;
-      height: 320px;
-      background: radial-gradient(circle, rgba(56,189,248,0.65), transparent 60%);
-      top: 40%;
-      left: 55%;
-      transform: translateX(-50%);
-      animation: float-3 26s ease-in-out infinite alternate;
-    }
+    .sheet-overlay.active { opacity: 1; pointer-events: auto; }
 
-    @keyframes float-1 {
-      0% { transform: translate3d(0,0,0) rotate(0deg); }
-      100% { transform: translate3d(70px,120px,0) rotate(6deg); }
-    }
-    @keyframes float-2 {
-      0% { transform: translate3d(0,0,0) rotate(0deg); }
-      100% { transform: translate3d(-100px,-120px,0) rotate(-8deg); }
-    }
-    @keyframes float-3 {
-      0% { transform: translate3d(-20px,0,0); }
-      100% { transform: translate3d(40px,-40px,0); }
-    }
-
-    /* === LAYOUT === */
-    .wrapper {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 18px 18px 60px;
-    }
-
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 40;
-      backdrop-filter: blur(18px);
-      background: linear-gradient(to bottom, rgba(15,23,42,0.96), transparent);
-      border-bottom: 1px solid rgba(15,23,42,0.8);
-    }
-
-    .nav-inner {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 10px 18px 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .logo-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    /* LOGO – استفاده از لوگوی خودت: فایل PNG رو جایگزین کن */
-    .logo-mark {
-      width: 40px;
-      height: 40px;
-      border-radius: 14px;
-      background: radial-gradient(circle at 25% 15%, #e5e7eb 0, #22d3ee 18%, #6366f1 50%, #020617 100%);
-      box-shadow: 0 0 28px rgba(56,189,248,0.85);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .logo-mark::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(15,23,42,0.75), transparent);
-      opacity: 0.92;
-    }
-
-    .logo-mark img {
-      width: 130%;
-      transform: translateY(1px);
-      filter: drop-shadow(0 0 16px rgba(15,23,42,0.8));
-    }
-
-    .logo-text-main {
-      font-size: 18px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      font-weight: 600;
-    }
-    .logo-text-sub {
-      font-size: 11px;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-top: -3px;
-    }
-
-    nav {
-      display: flex;
-      align-items: center;
-      gap: 22px;
-      font-size: 14px;
-    }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
-
-    .nav-link {
-      position: relative;
-      padding: 4px 0;
-      color: var(--muted);
-      text-decoration: none;
-      transition: color 0.18s ease-out;
-      font-size: 13px;
-    }
-    .nav-link::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      bottom: -4px;
-      width: 0;
-      height: 2px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent), var(--primary));
-      transition: width 0.18s ease-out;
-    }
-    .nav-link:hover {
-      color: var(--text);
-    }
-    .nav-link:hover::after {
-      width: 100%;
-    }
-
-    .nav-cta {
-      padding: 7px 16px;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,0.5);
-      background: radial-gradient(circle at top left, rgba(37,99,235,0.65), rgba(15,23,42,0.96));
-      color: #e5e7eb;
-      text-decoration: none;
-      font-size: 13px;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      box-shadow: 0 12px 30px rgba(15,23,42,0.9);
-      transition: all 0.18s ease-out;
-    }
-    .nav-cta span {
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      border: 1px solid rgba(226,232,240,0.7);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-    }
-    .nav-cta:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 18px 40px rgba(15,23,42,1);
-      border-color: rgba(226,232,240,0.7);
-    }
-
-    .nav-toggle {
-      display: none;
-      width: 34px;
-      height: 34px;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,0.6);
-      background: rgba(15,23,42,0.96);
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-    .nav-toggle span,
-    .nav-toggle span::before,
-    .nav-toggle span::after {
-      position: relative;
-      display: block;
-      width: 16px;
-      height: 2px;
-      border-radius: 999px;
-      background: #e5e7eb;
-      transition: all 0.18s ease-out;
-    }
-    .nav-toggle span::before,
-    .nav-toggle span::after {
-      content: "";
-      position: absolute;
-      left: 0;
-    }
-    .nav-toggle span::before { top: -5px; }
-    .nav-toggle span::after { top: 5px; }
-    .nav-toggle.active span {
-      background: transparent;
-    }
-    .nav-toggle.active span::before {
-      transform: translateY(5px) rotate(45deg);
-    }
-    .nav-toggle.active span::after {
-      transform: translateY(-5px) rotate(-45deg);
-    }
-
-    main {
-      padding-top: 32px;
-    }
-
-    /* === HERO === */
-    .hero {
-      display: grid;
-      grid-template-columns: minmax(0,1.4fr) minmax(0,1.1fr);
-      gap: 32px;
-      align-items: center;
-      padding: 32px 0 26px;
-    }
-
-    .hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 12px 4px 4px;
-      border-radius: 999px;
-      border: 1px solid rgba(56,189,248,0.6);
-      background: rgba(15,23,42,0.95);
-      box-shadow: 0 0 26px rgba(56,189,248,0.55);
-      margin-bottom: 12px;
-    }
-    .hero-badge-dot {
-      width: 22px;
-      height: 22px;
-      border-radius: 999px;
-      background: radial-gradient(circle at 25% 25%, #e5e7eb 0, #22d3ee 30%, #6366f1 70%, #020617 100%);
-      box-shadow: 0 0 18px rgba(56,189,248,0.9);
-    }
-    .hero-badge span {
-      font-size: 10px;
-      letter-spacing: 0.24em;
-      text-transform: uppercase;
-    }
-
-    .hero-title {
-      font-size: clamp(32px, 4.1vw, 42px);
-      font-weight: 600;
-      letter-spacing: 0.04em;
-    }
-    .hero-title span {
-      background: linear-gradient(120deg, #a5b4fc, #22d3ee, #22c55e);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-
-    .hero-subtitle {
-      font-size: 14px;
-      color: var(--muted);
-      max-width: 480px;
-      margin-top: 10px;
-    }
-
-    .hero-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 16px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .hero-meta span {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,0.4);
-      background: rgba(15,23,42,0.96);
-    }
-    .hero-meta .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--success);
-      box-shadow: 0 0 8px rgba(34,197,94,0.9);
-    }
-
-    .hero-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 18px;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 10px 20px;
-      border-radius: 999px;
-      border: 1px solid transparent;
-      font-size: 14px;
-      text-decoration: none;
-      cursor: pointer;
-      transition: all 0.18s ease-out;
-      white-space: nowrap;
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary), var(--accent));
-      color: #f9fafb;
-      box-shadow: 0 16px 42px rgba(15,23,42,0.95);
-    }
-    .btn-primary:hover {
-      transform: translateY(-1px) scale(1.01);
-      box-shadow: 0 22px 58px rgba(15,23,42,1);
-    }
-    .btn-ghost {
-      background: rgba(15,23,42,0.96);
-      border-color: rgba(148,163,184,0.5);
-      color: var(--text);
-    }
-    .btn-ghost:hover {
-      border-color: rgba(226,232,240,0.7);
-    }
-    .btn-tag {
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 10px;
-    }
-
-    .btn-icon {
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      border: 1px solid rgba(226,232,240,0.7);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-    }
-
-    .hero-caption {
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 10px;
-    }
-
-    /* === HERO PHONE MOCKUP === */
-    .hero-visual {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      perspective: 1200px;
-    }
-
-    .phone {
-      width: 290px;
-      border-radius: 36px;
-      padding: 18px 14px 20px;
-      background: radial-gradient(circle at 10% 0, #020617 0, #020617 30%, #000 100%);
-      border: 1px solid rgba(148,163,184,0.4);
-      box-shadow: var(--shadow-deep);
-      position: relative;
-      transform: rotateY(-14deg) rotateX(8deg);
-      transform-style: preserve-3d;
-      overflow: hidden;
-    }
-
-    .phone-notch {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 110px;
-      height: 16px;
-      border-radius: 0 0 16px 16px;
-      background: #020617;
-    }
-
-    .phone-inner {
-      margin-top: 24px;
-      border-radius: 28px;
-      padding: 18px 16px 16px;
-      background: radial-gradient(circle at 20% 0, rgba(15,23,42,0.2), rgba(15,23,42,0.98)),
-                  radial-gradient(circle at 80% 100%, rgba(56,189,248,0.22), rgba(15,23,42,1));
-      border: 1px solid rgba(30,64,175,0.8);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .phone-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.2em;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-
-    .circle-wrap {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 6px 0 10px;
-    }
-
-    .connect-circle {
-      width: 128px;
-      height: 128px;
-      border-radius: 999px;
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at 30% 20%, #1e293b 0, #020617 75%);
-      box-shadow: 0 0 0 1px rgba(15,23,42,1), 0 0 32px rgba(56,189,248,0.25);
-    }
-
-    .connect-ring {
-      position: absolute;
-      inset: -3px;
-      border-radius: inherit;
-      background:
-        conic-gradient(from 210deg,
-          rgba(34,197,94,0.1) 0deg,
-          rgba(34,197,94,0.85) 80deg,
-          rgba(234,179,8,0.85) 160deg,
-          rgba(248,113,113,0.9) 220deg,
-          rgba(15,23,42,1) 310deg,
-          rgba(34,197,94,0.75) 360deg);
-      filter: blur(0.3px);
-      animation: ring-rotate 14s linear infinite;
-      opacity: 0.96;
-    }
-
-    @keyframes ring-rotate {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    .connect-core {
-      position: relative;
-      z-index: 2;
-      width: 86px;
-      height: 86px;
-      border-radius: 999px;
-      background: radial-gradient(circle at 30% 20%, #020617 0, #020617 40%, #111827 100%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 0 24px rgba(34,197,94,0.55);
-    }
-
-    .connect-core-icon {
-      width: 22px;
-      height: 22px;
-      border-radius: 999px;
-      border: 2px solid rgba(148,163,184,0.9);
-      position: relative;
-      margin-bottom: 6px;
-    }
-    .connect-core-icon::before {
-      content: "";
-      position: absolute;
-      inset: 5px;
-      border-radius: inherit;
-      background: radial-gradient(circle, #22c55e, transparent 70%);
-      opacity: 0.9;
-    }
-
-    .connect-core span {
-      font-size: 11px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: #e5e7eb;
-    }
-
-    .phone-status {
-      text-align: center;
-      font-size: 11px;
-      color: var(--muted);
-      margin-bottom: 14px;
-    }
-
-    .phone-status strong {
-      color: #bbf7d0;
-    }
-
-    .metrics-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      font-size: 10px;
-    }
-
-    .metric {
-      flex: 1;
-      border-radius: 12px;
-      padding: 8px 10px;
-      background: rgba(15,23,42,0.95);
-      border: 1px solid rgba(51,65,85,0.8);
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .metric-label {
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--muted);
-    }
-    .metric-value {
-      font-size: 12px;
-      font-weight: 500;
-    }
-
-    .server-pill {
-      margin-top: 10px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,0.6);
-      background: rgba(15,23,42,0.96);
-      font-size: 10px;
-      color: #e5e7eb;
-    }
-    .flag-dot {
-      width: 16px;
-      height: 16px;
-      border-radius: 999px;
-      background: radial-gradient(circle at 30% 30%, #facc15 0, #ef4444 40%, #1d4ed8 85%);
-      box-shadow: 0 0 10px rgba(56,189,248,0.4);
-    }
-
-    .badge-floating {
-      position: absolute;
-      top: 28px;
-      right: -4px;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 10px;
-      background: rgba(15,23,42,0.98);
-      border: 1px solid rgba(56,189,248,0.85);
-      box-shadow: 0 0 20px rgba(56,189,248,0.8);
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      animation: float-badge 5.5s ease-in-out infinite;
-    }
-
-    @keyframes float-badge {
-      0%,100% { transform: translateY(0); opacity: 1; }
-      50% { transform: translateY(-5px); opacity: 0.9; }
-    }
-
-    /* === SHARED SECTION STYLES === */
-    section {
-      margin-top: 46px;
-    }
-
-    .section-header {
-      margin-bottom: 18px;
-    }
-    .section-eyebrow {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.24em;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    .section-title {
-      font-size: 22px;
-      font-weight: 600;
-    }
-    .section-subtitle {
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 4px;
-      max-width: 460px;
-    }
-
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap: 18px;
-    }
-
-    .card {
-      position: relative;
-      padding: 16px 16px 14px;
-      border-radius: var(--radius-xl);
-      background: var(--card-bg);
-      border: 1px solid var(--border-soft);
-      box-shadow: 0 20px 52px rgba(15,23,42,0.9);
-      overflow: hidden;
-    }
-    .card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at top left, rgba(79,70,229,0.32), transparent 55%);
-      opacity: 0;
-      transition: opacity 0.2s ease-out;
-    }
-    .card:hover::before {
-      opacity: 1;
-    }
-
-    .card-icon {
-      width: 26px;
-      height: 26px;
-      border-radius: 999px;
-      background: rgba(15,23,42,0.96);
-      border: 1px solid rgba(148,163,184,0.7);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      margin-bottom: 8px;
-    }
-    .card-title {
-      font-size: 14px;
-      font-weight: 500;
-      margin-bottom: 4px;
-    }
-    .card-text {
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .card-tag {
-      margin-top: 8px;
-      font-size: 11px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: rgba(129,140,248,0.96);
-    }
-
-    /* === TECHNOLOGY / STATS === */
-    .row-2 {
-      display: grid;
-      grid-template-columns: minmax(0,1.15fr) minmax(0,1fr);
-      gap: 20px;
-    }
-
-    .stat-grid {
-      display: grid;
-      grid-template-columns: repeat(2,minmax(0,1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .stat-card {
-      padding: 12px 12px 10px;
-      border-radius: 16px;
-      border: 1px solid rgba(55,65,81,0.8);
-      background: radial-gradient(circle at top, rgba(15,23,42,0.96), rgba(15,23,42,1));
-      font-size: 11px;
-    }
-    .stat-label {
-      color: var(--muted);
-      margin-bottom: 4px;
-    }
-    .stat-value {
-      font-size: 18px;
-      font-weight: 600;
-    }
-    .stat-hint {
-      font-size: 10px;
-      color: rgba(148,163,184,0.9);
-      margin-top: 2px;
-    }
-
-    .tech-card {
-      padding: 16px;
-      border-radius: 18px;
-      background: radial-gradient(circle at top, rgba(56,189,248,0.35), rgba(15,23,42,1));
-      border: 1px solid rgba(56,189,248,0.75);
-      box-shadow: var(--shadow-deep);
-      font-size: 12px;
-      color: #e5e7eb;
-    }
-
-    .tech-pill-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .tech-pill {
-      font-size: 11px;
-      padding: 5px 9px;
-      border-radius: 999px;
-      background: rgba(15,23,42,0.96);
-      border: 1px solid rgba(226,232,240,0.2);
-    }
-
-    /* === SERVERS STRIP === */
-    .server-strip {
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 16px;
-      border: 1px solid rgba(55,65,81,0.85);
-      background: rgba(15,23,42,0.96);
-      overflow-x: auto;
-      display: flex;
-      gap: 10px;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(148,163,184,0.7) transparent;
-    }
-    .server-chip {
-      min-width: 140px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      border: 1px solid rgba(75,85,99,0.9);
-      background: radial-gradient(circle at 20% 0, rgba(37,99,235,0.4), rgba(15,23,42,1));
-      font-size: 11px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .server-chip-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 6px;
-    }
-    .server-name {
-      font-weight: 500;
-    }
-    .ping {
-      font-size: 11px;
-      color: #bbf7d0;
-    }
-    .server-detail {
-      font-size: 10px;
-      color: var(--muted);
-    }
-
-    /* === FAQ === */
-    .faq-list {
-      padding: 10px 14px;
-      border-radius: var(--radius-xl);
-      border: 1px solid var(--border-soft);
-      background: radial-gradient(circle at top, rgba(15,23,42,0.96), rgba(15,23,42,1));
-      box-shadow: 0 20px 40px rgba(15,23,42,1);
-    }
-
-    .faq-item {
-      border-bottom: 1px solid rgba(55,65,81,0.8);
-    }
-    .faq-item:last-child {
-      border-bottom: none;
-    }
-    .faq-question {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 9px 2px;
-      cursor: pointer;
-      font-size: 13px;
-    }
-    .faq-toggle {
-      width: 20px;
-      height: 20px;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,0.8);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      color: rgba(148,163,184,0.9);
-    }
-    .faq-answer {
-      max-height: 0;
-      overflow: hidden;
-      opacity: 0;
-      transition: all 0.2s ease-out;
-      font-size: 12px;
-      color: var(--muted);
-      padding: 0 2px;
-    }
-    .faq-item.open .faq-answer {
-      max-height: 260px;
-      opacity: 1;
-      padding-bottom: 8px;
-    }
-    .faq-item.open .faq-toggle {
-      background: rgba(148,163,184,0.16);
-    }
-
-    /* === DOWNLOAD CTA STRIP === */
-    .download-strip {
-      margin-top: 40px;
-      padding: 16px 16px 14px;
-      border-radius: 20px;
-      background: linear-gradient(115deg, rgba(37,99,235,0.98), rgba(56,189,248,0.98));
-      box-shadow: 0 24px 70px rgba(15,23,42,1);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      align-items: center;
-      justify-content: space-between;
-      color: #f9fafb;
-    }
-    .download-main {
-      font-size: 14px;
-      font-weight: 500;
-    }
-    .download-sub {
-      font-size: 11px;
-      opacity: 0.9;
-    }
-    .download-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .store-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(248,250,252,0.65);
-      background: rgba(15,23,42,0.98);
-      font-size: 12px;
-      color: #e5e7eb;
-      text-decoration: none;
-      transition: all 0.18s ease-out;
-    }
-    .store-chip:hover:not(.chip-soon) {
-      transform: translateY(-1px);
-      border-color: #f9fafb;
-    }
-    .chip-soon {
-      opacity: 0.6;
-      cursor: default;
-    }
-    .store-icon {
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,0.9);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-    }
-
-    footer {
-      margin-top: 26px;
-      padding: 16px 0 4px;
-      border-top: 1px solid rgba(15,23,42,0.96);
-      font-size: 11px;
-      color: var(--muted);
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .footer-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-    .footer-links a {
-      color: var(--muted);
-      text-decoration: none;
-      border-bottom: 1px dashed transparent;
-      padding-bottom: 1px;
-      transition: all 0.18s ease-out;
-    }
-    .footer-links a:hover {
-      color: #e5e7eb;
-      border-color: rgba(148,163,184,0.7);
-    }
-
-    /* === ANIMATION ON SCROLL === */
-    .reveal {
-      opacity: 0;
-      transform: translateY(18px);
-      transition: opacity 0.4s ease-out, transform 0.4s ease-out;
-    }
-    .reveal.in-view {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* === RESPONSIVE === */
-    @media (max-width: 900px) {
-      .hero {
-        grid-template-columns: minmax(0,1fr);
-      }
-      .hero-visual {
-        order: -1;
-      }
-      .row-2 {
-        grid-template-columns: minmax(0,1fr);
-      }
-      .grid-3 {
-        grid-template-columns: repeat(2,minmax(0,1fr));
-      }
-    }
-
-    @media (max-width: 720px) {
-      .wrapper {
-        padding-inline: 16px;
-      }
-      .nav-links {
-        position: absolute;
-        inset: 54px 16px auto;
-        border-radius: 16px;
-        border: 1px solid rgba(148,163,184,0.45);
-        background: rgba(15,23,42,0.98);
-        flex-direction: column;
-        padding: 8px 10px;
-        display: none;
-      }
-      .nav-links.open {
-        display: flex;
-      }
-      .nav-toggle {
-        display: inline-flex;
-      }
-      nav {
-        margin-left: auto;
-      }
-      .grid-3 {
-        grid-template-columns: minmax(0,1fr);
-      }
-      .phone {
-        transform: none;
-      }
-      .download-strip {
-        align-items: flex-start;
-      }
-    }
+    /* Custom AOS offsets for non-repetitive feel */
+    [data-aos="fade-up-right"] { transform: translate3d(-30px, 30px, 0); }
+    [data-aos="fade-up-left"] { transform: translate3d(30px, 30px, 0); }
   </style>
 </head>
-<body>
-  <!-- background -->
-  <div class="bg-layer"></div>
-  <div class="bg-shape bg-shape-1"></div>
-  <div class="bg-shape bg-shape-2"></div>
-  <div class="bg-shape bg-shape-3"></div>
+<body class="bg-grid">
 
-  <header>
-    <div class="nav-inner">
-      <div class="logo-row">
-        <div class="logo-mark">
-          <!-- لوگوی خودت رو به اسم logo-nyxvpn.png کنار همین فایل بذار -->
-          <img src="logo-nyxvpn.png" alt="NYX VPN logo">
-        </div>
-        <div>
-          <div class="logo-text-main">NYX VPN</div>
-          <div class="logo-text-sub">PRIVATE NETWORK</div>
-        </div>
-      </div>
-
-      <nav>
-        <button class="nav-toggle" aria-label="Toggle navigation">
-          <span></span>
-        </button>
-        <div class="nav-links">
-          <a href="#features" class="nav-link">Features</a>
-          <a href="#technology" class="nav-link">Technology</a>
-          <a href="#servers" class="nav-link">Servers</a>
-          <a href="#download" class="nav-link">Download</a>
-          <a href="#faq" class="nav-link">FAQ</a>
-          <a href="#download" class="nav-cta">
-            Get NYX VPN
-            <span>↓</span>
-          </a>
-        </div>
-      </nav>
+<!-- Navbar -->
+<nav class="fixed w-full z-50 bg-black/80 backdrop-blur-md border-b border-gray-900">
+  <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+    <div class="flex items-center space-x-3 space-x-reverse">
+      <img src="https://play-lh.googleusercontent.com/A_HHIh7SYygaSqQnE3kWN68mhHIsuowZ0cP1UDOnpZjJ5Qn0q0kRT-DiZImgWeTGFjt1lZ6_U3oki7ZjFipf=w240-h480-rw" alt="Zex VPN Logo" class="w-10 h-10 rounded-xl logo-shadow">
+      <span class="text-2xl font-bold glow-text">Zex VPN</span>
     </div>
-  </header>
+    <div class="hidden md:flex space-x-8 space-x-reverse text-gray-300">
+      <a href="#features" class="hover:text-[#00cc88] transition">امکانات</a>
+      <a href="#privacy" class="hover:text-[#00cc88] transition">امنیت</a>
+      <a href="#download" class="hover:text-[#00cc88] transition">دانلود</a>
+    </div>
+    <a href="https://play.google.com/store/apps/details?id=com.vgh.app&hl=en" target="_blank" class="hidden md:block zex-btn text-white px-6 py-2 rounded-full font-medium">
+      <i class="fab fa-google-play ml-1"></i> دانلود مستقیم
+    </a>
+  </div>
+</nav>
 
-  <div class="wrapper">
-    <main>
-      <!-- HERO -->
-      <section class="hero">
-        <div class="reveal">
-          <div class="hero-badge">
-            <div class="hero-badge-dot"></div>
-            <span>Secure internet · One tap</span>
-          </div>
-          <h1 class="hero-title">
-            Feel premium internet<br />
-            with <span>NYX VPN</span>
-          </h1>
-          <p class="hero-subtitle">
-            Free, fast and secure VPN designed with a premium mobile experience.
-            High-speed servers and a strict no-logs approach keep your connection private—always.
-          </p>
+<!-- Hero Section -->
+<header class="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
+  <!-- Dynamic Glows -->
+  <div id="blob1" class="absolute top-1/4 right-1/4 w-96 h-96 bg-[#009966] rounded-full mix-blend-screen filter blur-[120px] opacity-30 animate-pulse"></div>
+  <div id="blob2" class="absolute bottom-1/4 left-1/4 w-96 h-96 bg-[#00cc88] rounded-full mix-blend-screen filter blur-[120px] opacity-20 animate-pulse"></div>
 
-          <div class="hero-meta">
-            <span><div class="dot"></div> No logs stored</span>
-            <span>High-speed global servers</span>
-            <span>Free to use</span>
-          </div>
-
-          <div class="hero-actions">
-            <!-- لینک گوگل پلی خودت رو بعداً جایگزین کن -->
-            <a href="https://play.google.com/store/apps/details?id=com.yournyxvpn"
-               class="btn btn-primary">
-              Download on Google Play
-              <span class="btn-icon">▶</span>
-            </a>
-            <a class="btn btn-ghost" aria-disabled="true">
-              App Store · Coming Soon
-            </a>
-          </div>
-
-          <div class="hero-caption">
-            Works on Wi-Fi & mobile data · One-tap connect · Modern encryption protocols
-          </div>
-        </div>
-
-        <!-- PHONE MOCKUP -->
-        <div class="hero-visual reveal">
-          <div class="phone">
-            <div class="phone-notch"></div>
-            <div class="badge-floating">
-              <span style="font-size:11px;">★</span>
-              <span>Premium UI</span>
-            </div>
-            <div class="phone-inner">
-              <div class="phone-label">Connection status</div>
-
-              <div class="circle-wrap">
-                <div class="connect-circle">
-                  <div class="connect-ring"></div>
-                  <div class="connect-core">
-                    <div class="connect-core-icon"></div>
-                    <span>Connected</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="phone-status">
-                Successfully connected · <strong>Germany · High speed</strong>
-              </div>
-
-              <div class="metrics-row">
-                <div class="metric">
-                  <div class="metric-label">Download</div>
-                  <div class="metric-value">110 Mbps</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Upload</div>
-                  <div class="metric-value">32 Mbps</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-label">Latency</div>
-                  <div class="metric-value">28 ms</div>
-                </div>
-              </div>
-
-              <div class="server-pill">
-                <div class="flag-dot"></div>
-                <div>Germany · Optimized route</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- FEATURES -->
-      <section id="features" class="reveal">
-        <div class="section-header">
-          <div class="section-eyebrow">Features</div>
-          <h2 class="section-title">Why people choose NYX VPN</h2>
-          <p class="section-subtitle">
-            Built for everyday users who want a premium app experience and serious privacy—without paying a subscription.
-          </p>
-        </div>
-
-        <div class="grid-3">
-          <div class="card">
-            <div class="card-icon">🔐</div>
-            <div class="card-title">No-log privacy</div>
-            <p class="card-text">
-              We don’t store your browsing history, IP address or traffic content.
-              Your connection is encrypted and your activity remains private.
-            </p>
-            <div class="card-tag">Zero logs</div>
-          </div>
-
-          <div class="card">
-            <div class="card-icon">⚡</div>
-            <div class="card-title">High-speed routes</div>
-            <p class="card-text">
-              Smart routing connects you to the fastest available server for streaming,
-              gaming and downloads with consistently low latency.
-            </p>
-            <div class="card-tag">Low ping</div>
-          </div>
-
-          <div class="card">
-            <div class="card-icon">🌍</div>
-            <div class="card-title">Global locations</div>
-            <p class="card-text">
-              Multiple server locations help you bypass geo-blocks, access content and stay secure wherever you are.
-            </p>
-            <div class="card-tag">Multi region</div>
-          </div>
-
-          <div class="card">
-            <div class="card-icon">🛡️</div>
-            <div class="card-title">Modern encryption</div>
-            <p class="card-text">
-              Uses modern VPN protocols and secure configurations to keep your data protected on any network,
-              including public Wi-Fi.
-            </p>
-            <div class="card-tag">Secure tunnel</div>
-          </div>
-
-          <div class="card">
-            <div class="card-icon">🎨</div>
-            <div class="card-title">Premium UI</div>
-            <p class="card-text">
-              The same dark, neon UI you see in the app—smooth animations, clear states and a one-tap connect button.
-            </p>
-            <div class="card-tag">App-first design</div>
-          </div>
-
-          <div class="card">
-            <div class="card-icon">💸</div>
-            <div class="card-title">Free to use</div>
-            <p class="card-text">
-              Connect to secure servers without subscriptions or hidden fees.
-              NYX VPN is free to download and simple to start using.
-            </p>
-            <div class="card-tag">Free access</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TECHNOLOGY & STATS -->
-      <section id="technology" class="reveal">
-        <div class="row-2">
-          <div>
-            <div class="section-header">
-              <div class="section-eyebrow">Technology</div>
-              <h2 class="section-title">Built for speed, tuned for privacy</h2>
-              <p class="section-subtitle">
-                Under the minimal interface, NYX VPN uses optimized server routes and modern encryption
-                so you can browse, stream and game with confidence.
-              </p>
-            </div>
-
-            <div class="stat-grid">
-              <div class="stat-card">
-                <div class="stat-label">Average latency</div>
-                <div class="stat-value">&lt; 40 ms</div>
-                <div class="stat-hint">Optimized paths for real-time usage.</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-label">Uptime</div>
-                <div class="stat-value">99.9%</div>
-                <div class="stat-hint">Always-on servers ready when you are.</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-label">Devices</div>
-                <div class="stat-value">3+</div>
-                <div class="stat-hint">Use NYX VPN on multiple Android devices.</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-label">Traffic</div>
-                <div class="stat-value">Unlimited</div>
-                <div class="stat-hint">No bandwidth or time limits.</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="tech-card">
-            <strong>Under the hood.</strong>
-            <p style="margin-top:6px;">
-              NYX VPN uses secure configurations and optimized tunnels to keep your data encrypted from your device
-              to our edge servers. We focus on a clean app experience while handling the complex networking behind the scenes.
-            </p>
-            <div class="tech-pill-row">
-              <div class="tech-pill">Modern VPN protocols</div>
-              <div class="tech-pill">Encrypted DNS</div>
-              <div class="tech-pill">Smart routing</div>
-              <div class="tech-pill">Server health checks</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- SERVERS -->
-      <section id="servers" class="reveal">
-        <div class="section-header">
-          <div class="section-eyebrow">Servers</div>
-          <h2 class="section-title">Fast routes across key locations</h2>
-          <p class="section-subtitle">
-            Connect to optimized servers in popular regions. NYX VPN automatically picks the fastest option for you.
-          </p>
-        </div>
-
-        <div class="server-strip">
-          <div class="server-chip">
-            <div class="server-chip-head">
-              <span class="server-name">Germany · Premium</span>
-              <span class="ping">22 ms</span>
-            </div>
-            <div class="server-detail">Great for streaming & everyday browsing.</div>
-          </div>
-
-          <div class="server-chip">
-            <div class="server-chip-head">
-              <span class="server-name">Netherlands</span>
-              <span class="ping">35 ms</span>
-            </div>
-            <div class="server-detail">Balanced speed & privacy routing.</div>
-          </div>
-
-          <div class="server-chip">
-            <div class="server-chip-head">
-              <span class="server-name">France</span>
-              <span class="ping">40 ms</span>
-            </div>
-            <div class="server-detail">Stable performance for daily use.</div>
-          </div>
-
-          <div class="server-chip">
-            <div class="server-chip-head">
-              <span class="server-name">United Kingdom</span>
-              <span class="ping">44 ms</span>
-            </div>
-            <div class="server-detail">Good mix of speed and reach.</div>
-          </div>
-
-          <div class="server-chip">
-            <div class="server-chip-head">
-              <span class="server-name">US · East</span>
-              <span class="ping">90 ms</span>
-            </div>
-            <div class="server-detail">Access international content securely.</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- FAQ -->
-      <section id="faq" class="reveal">
-        <div class="section-header">
-          <div class="section-eyebrow">FAQ</div>
-          <h2 class="section-title">Frequently asked questions</h2>
-          <p class="section-subtitle">
-            Here are some quick answers. For more details, check the privacy policy or contact us directly.
-          </p>
-        </div>
-
-        <div class="faq-list">
-          <div class="faq-item open">
-            <div class="faq-question">
-              <span>Is NYX VPN really free?</span>
-              <div class="faq-toggle">−</div>
-            </div>
-            <div class="faq-answer">
-              Yes. NYX VPN is free to download and use. You can connect to our high-speed servers without any subscriptions
-              or time limits.
-            </div>
-          </div>
-
-          <div class="faq-item">
-            <div class="faq-question">
-              <span>Do you keep logs of my activity?</span>
-              <div class="faq-toggle">+</div>
-            </div>
-            <div class="faq-answer">
-              We apply a strict no-logs approach. We don’t store your browsing history, the content you access, or
-              your traffic data. For more details, please read our Privacy Policy.
-            </div>
-          </div>
-
-          <div class="faq-item">
-            <div class="faq-question">
-              <span>Can I use NYX VPN for streaming and gaming?</span>
-              <div class="faq-toggle">+</div>
-            </div>
-            <div class="faq-answer">
-              Yes. NYX VPN is optimized for fast, stable connections. Our server routes are tuned for streaming, gaming
-              and everyday browsing with low latency whenever possible.
-            </div>
-          </div>
-
-          <div class="faq-item">
-            <div class="faq-question">
-              <span>Which platforms are supported?</span>
-              <div class="faq-toggle">+</div>
-            </div>
-            <div class="faq-answer">
-              NYX VPN is currently available for Android devices. An iOS version for the App Store is planned for the future.
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- DOWNLOAD CTA -->
-      <section id="download" class="reveal">
-        <div class="download-strip">
-          <div>
-            <div class="download-main">Ready to try NYX VPN?</div>
-            <div class="download-sub">
-              Download the Android app and secure your connection in one tap. Free, fast and no-log by design.
-            </div>
-          </div>
-
-          <div class="download-actions">
-            <a href="https://play.google.com/store/apps/details?id=com.yournyxvpn"
-               class="store-chip">
-              <span class="store-icon">▶</span>
-              <span>Get it on Google Play</span>
-            </a>
-
-            <span class="store-chip chip-soon">
-              <span class="store-icon"></span>
-              <span>App Store · Coming Soon</span>
-            </span>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer>
-      <div>© <span id="year"></span> NYX VPN. All rights reserved.</div>
-      <div class="footer-links">
-        <a href="https://sites.google.com/view/nyxvpn/home" target="_blank">Privacy Policy</a>
-        <a href="mailto:support@nyxvpn.example">Contact</a>
+  <div class="container mx-auto px-6 grid md:grid-cols-2 gap-12 items-center relative z-10">
+    <div data-aos="fade-up-left" data-aos-duration="1000">
+                <span class="inline-block bg-[#009966]/10 text-[#00cc88] px-4 py-1 rounded-full text-sm mb-6 border border-[#009966]/30">
+                    <i class="fas fa-bolt"></i> سریع، پایدار و امن
+                </span>
+      <h1 class="text-5xl md:text-6xl font-black leading-tight mb-6">
+        اینترنت <span class="text-transparent bg-clip-text bg-gradient-to-r from-[#00cc88] to-[#009966]">پایدار و امن</span> را تجربه کنید
+      </h1>
+      <p class="text-gray-400 text-lg mb-8 max-w-lg">
+        Zex VPN برای کاربرانی طراحی شده است که به قابلیت اطمینان و حریم خصوصی اهمیت می‌دهند. از مرور روان و ارتباطات ایمن فقط با یک لمس لذت ببرید.
+      </p>
+      <div class="flex flex-wrap gap-4">
+        <a href="https://play.google.com/store/apps/details?id=com.vgh.app&hl=en" target="_blank" class="zex-btn text-white px-8 py-4 rounded-xl text-lg font-bold flex items-center space-x-2 space-x-reverse neon-border">
+          <i class="fab fa-google-play text-2xl"></i>
+          <span>دانلود از گوگل پلی</span>
+        </a>
+        <a href="#features" class="border border-gray-700 hover:border-[#009966] text-gray-300 hover:text-white px-8 py-4 rounded-xl text-lg font-medium flex items-center transition">
+          <i class="fas fa-circle-info ml-2"></i> امکانات اپ
+        </a>
       </div>
-    </footer>
+    </div>
+
+    <!-- Interactive Phone Mockup -->
+    <div class="flex justify-center" data-aos="zoom-in" data-aos-duration="1000">
+      <div class="relative float">
+        <div class="w-[320px] h-[640px] bg-[#050505] rounded-[3rem] border-8 border-gray-900 shadow-2xl overflow-hidden neon-border relative">
+
+          <!-- Notch -->
+          <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-gray-900 rounded-b-2xl z-30"></div>
+
+          <!-- Status Bar -->
+          <div class="absolute top-0 w-full flex justify-between items-center px-6 pt-2 text-white text-xs z-20 font-sans">
+            <span>9:41</span>
+            <div class="flex items-center space-x-1">
+              <i class="fas fa-signal"></i>
+              <i class="fas fa-wifi"></i>
+              <i class="fas fa-battery-full"></i>
+            </div>
+          </div>
+
+          <!-- Menu Icon -->
+          <div class="absolute top-12 left-5 z-20 text-white text-2xl cursor-pointer hover:text-[#00cc88] transition">
+            <i class="fas fa-bars"></i>
+          </div>
+
+          <!-- Main Content -->
+          <div class="absolute inset-0 flex flex-col items-center pt-24 z-10">
+
+            <h3 id="stateText" class="text-white text-3xl font-bold tracking-wide transition-colors duration-300">Not Connected</h3>
+            <p id="timerText" class="text-gray-500 text-lg font-mono tracking-wider mt-1 transition-colors duration-300">00:00:00</p>
+
+            <!-- Connect Button -->
+            <div class="relative w-[240px] h-[240px] flex items-center justify-center mt-8">
+              <div class="absolute w-[220px] h-[220px] rounded-full bg-[#009966] opacity-10"></div>
+              <div class="absolute w-[190px] h-[190px] rounded-full bg-[#009966] opacity-25"></div>
+              <button id="connectBtn" class="w-[160px] h-[160px] rounded-full bg-gradient-to-br from-[#00cc88] to-[#009966] flex items-center justify-center shadow-[0_0_40px_rgba(0,153,102,0.6)] transition-all duration-300 cursor-pointer focus:outline-none">
+                <i id="powerIcon" class="fas fa-power-off text-white text-5xl"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Country Selection Card -->
+          <div id="countryCard" class="absolute bottom-8 left-1/2 transform -translate-x-1/2 w-[85%] h-[76px] bg-[#111111] border border-[#009966]/20 rounded-full flex items-center justify-between px-5 z-20 shadow-xl backdrop-blur-md cursor-pointer hover:bg-[#161616] transition">
+            <div class="flex items-center gap-4">
+              <div id="flagDisplay" class="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-2xl overflow-hidden border border-gray-700">🇺🇸</div>
+              <div>
+                <p id="countryName" class="text-white font-bold text-lg leading-none">United States</p>
+                <p class="text-gray-500 text-xs mt-1"> automatic</p>
+              </div>
+            </div>
+            <i class="fas fa-chevron-up text-[#00cc88] text-xl"></i>
+          </div>
+
+          <!-- Bottom Sheet Overlay -->
+          <div id="sheetOverlay" class="sheet-overlay absolute inset-0 bg-black/60 z-30"></div>
+
+          <!-- Bottom Sheet -->
+          <div id="bottomSheet" class="bottom-sheet absolute bottom-0 left-0 w-full bg-[#0f0f0f] rounded-t-3xl border-t border-[#009966]/30 p-6 z-40 h-3/4 overflow-y-auto">
+            <div class="w-12 h-1 bg-gray-600 rounded-full mx-auto mb-6"></div>
+            <h4 class="text-xl font-bold mb-6 text-white">انتخاب سرور</h4>
+            <div class="space-y-3" id="serverList">
+              <!-- Servers will be injected by JS -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Features Section -->
+<section id="features" class="py-24 container mx-auto px-6">
+  <div class="text-center mb-16" data-aos="fade-down" data-aos-duration="800">
+    <h2 class="text-4xl font-bold mb-4">چرا <span class="text-[#00cc88]">Zex VPN</span> ؟</h2>
+    <p class="text-gray-400 max-w-2xl mx-auto">تلفیقی از سرعت، پایداری و امنیت برای آرامش خاطر شما.</p>
   </div>
 
-  <script>
-    // سال
-    document.getElementById("year").textContent = new Date().getFullYear();
+  <div class="grid md:grid-cols-3 gap-8">
+    <div class="glass-card p-8 rounded-2xl" data-aos="fade-up-right" data-aos-delay="50">
+      <div class="w-14 h-14 bg-[#009966]/10 rounded-xl flex items-center justify-center mb-6">
+        <i class="fas fa-signal text-[#00cc88] text-2xl"></i>
+      </div>
+      <h3 class="text-xl font-bold mb-3">ارتباط پایدار</h3>
+      <p class="text-gray-400 leading-relaxed">سرورهای بهینه‌شده برای عملکرد پیوسته و بدون قطعی در طول زمان استفاده.</p>
+    </div>
+    <div class="glass-card p-8 rounded-2xl" data-aos="fade-up" data-aos-delay="150">
+      <div class="w-14 h-14 bg-[#009966]/10 rounded-xl flex items-center justify-center mb-6">
+        <i class="fas fa-shield-halved text-[#00cc88] text-2xl"></i>
+      </div>
+      <h3 class="text-xl font-bold mb-3">رمزنگاری امن</h3>
+      <p class="text-gray-400 leading-relaxed">استفاده از پروتکل‌های استاندارد صنعت برای محافظت از داده‌ها در برابر رهگیری.</p>
+    </div>
+    <div class="glass-card p-8 rounded-2xl" data-aos="fade-up-left" data-aos-delay="250">
+      <div class="w-14 h-14 bg-[#009966]/10 rounded-xl flex items-center justify-center mb-6">
+        <i class="fas fa-bolt text-[#00cc88] text-2xl"></i>
+      </div>
+      <h3 class="text-xl font-bold mb-3">سریع و قابل اعتماد</h3>
+      <p class="text-gray-400 leading-relaxed">ایجاد تعادل بی‌نقص بین سرعت بالا و پایداری اتصال برای تجربه‌ای بی‌نقص.</p>
+    </div>
+    <div class="glass-card p-8 rounded-2xl" data-aos="fade-up-right" data-aos-delay="50">
+      <div class="w-14 h-14 bg-[#009966]/10 rounded-xl flex items-center justify-center mb-6">
+        <i class="fas fa-hand-pointer text-[#00cc88] text-2xl"></i>
+      </div>
+      <h3 class="text-xl font-bold mb-3">اتصال با یک لمس</h3>
+      <p class="text-gray-400 leading-relaxed">رابط کاربری ساده و آسان؛ فقط با یک لمس به اینترنت امن متصل شوید.</p>
+    </div>
+    <div class="glass-card p-8 rounded-2xl" data-aos="fade-up" data-aos-delay="150">
+      <div class="w-14 h-14 bg-[#009966]/10 rounded-xl flex items-center justify-center mb-6">
+        <i class="fas fa-wifi text-[#00cc88] text-2xl"></i>
+      </div>
+      <h3 class="text-xl font-bold mb-3">محافظت در وای‌فای عمومی</h3>
+      <p class="text-gray-400 leading-relaxed">ایمن‌سازی ارتباط شما در شبکه‌های اشتراکی و کافه‌ها برای جلوگیری از هک.</p>
+    </div>
+    <div class="glass-card p-8 rounded-2xl" data-aos="fade-up-left" data-aos-delay="250">
+      <div class="w-14 h-14 bg-[#009966]/10 rounded-xl flex items-center justify-center mb-6">
+        <i class="fas fa-route text-[#00cc88] text-2xl"></i>
+      </div>
+      <h3 class="text-xl font-bold mb-3">مسیریابی هوشمند</h3>
+      <p class="text-gray-400 leading-relaxed">انتخاب خودکار بهترین مسیرها برای رسیدن به حداکثر عملکرد و سرعت.</p>
+    </div>
+  </div>
+</section>
 
-    // موبایل منو
-    const navToggle = document.querySelector(".nav-toggle");
-    const navLinks = document.querySelector(".nav-links");
-    navToggle.addEventListener("click", () => {
-      navToggle.classList.toggle("active");
-      navLinks.classList.toggle("open");
+<!-- Privacy Section -->
+<section id="privacy" class="py-24 bg-black border-y border-gray-900 relative overflow-hidden">
+  <div class="absolute top-0 right-0 w-64 h-64 bg-[#009966] rounded-full filter blur-[120px] opacity-10"></div>
+  <div class="container mx-auto px-6 grid md:grid-cols-2 gap-12 items-center relative z-10">
+    <div data-aos="fade-right" data-aos-duration="1000">
+                <span class="inline-block bg-[#009966]/10 text-[#00cc88] px-4 py-1 rounded-full text-sm mb-6 border border-[#009966]/30">
+                    <i class="fas fa-globe"></i> حریم خصوصی و امنیت روزمره
+                </span>
+      <h2 class="text-4xl font-bold mb-6">امنیت در هر لحظه، در هر کجا</h2>
+      <p class="text-gray-400 text-lg mb-6 leading-relaxed">
+        چه در حال مرور وب باشید، چه در حال پیام‌رسانی یا استفاده از اپلیکیشن‌های مورد علاقه‌تان، Zex VPN کمک می‌کند تا ارتباط شما همیشه پایدار، امن و خصوصی باقی بماند.
+      </p>
+      <ul class="space-y-3 text-gray-300">
+        <li class="flex items-center space-x-3 space-x-reverse">
+          <i class="fas fa-circle-check text-[#00cc88] text-xl"></i>
+          <span>عدم ذخیره لاگ‌های مرور و داده‌های فعالیت شخصی</span>
+        </li>
+        <li class="flex items-center space-x-3 space-x-reverse">
+          <i class="fas fa-circle-check text-[#00cc88] text-xl"></i>
+          <span>محافظت کامل از هویت و موقعیت مکانی شما</span>
+        </li>
+      </ul>
+    </div>
+    <div class="flex justify-center" data-aos="zoom-in-left" data-aos-duration="800">
+      <div class="grid grid-cols-2 gap-6">
+        <div class="glass-card p-6 rounded-2xl text-center hover:rotate-3">
+          <i class="fas fa-lock text-4xl text-[#00cc88] mb-4"></i>
+          <h4 class="font-bold text-lg">پایدار</h4>
+        </div>
+        <div class="glass-card p-6 rounded-2xl text-center hover:-rotate-3">
+          <i class="fas fa-shield text-4xl text-[#00cc88] mb-4"></i>
+          <h4 class="font-bold text-lg">امن</h4>
+        </div>
+        <div class="glass-card p-6 rounded-2xl text-center hover:-rotate-3">
+          <i class="fas fa-user-secret text-4xl text-[#00cc88] mb-4"></i>
+          <h4 class="font-bold text-lg">خصوصی</h4>
+        </div>
+        <div class="glass-card p-6 rounded-2xl text-center hover:rotate-3">
+          <i class="fas fa-rocket text-4xl text-[#00cc88] mb-4"></i>
+          <h4 class="font-bold text-lg">سریع</h4>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- App Info & Stats Section -->
+<section class="py-16 container mx-auto px-6">
+  <div class="glass-card rounded-3xl p-8 grid grid-cols-2 md:grid-cols-4 gap-8 text-center" data-aos="flip-up">
+    <div>
+      <i class="fas fa-code-branch text-[#00cc88] text-2xl mb-2"></i>
+      <p class="text-gray-400 text-sm">نسخه فعلی</p>
+      <p class="text-xl font-bold text-white">1.1.0</p>
+    </div>
+    <div>
+      <i class="fab fa-android text-[#00cc88] text-2xl mb-2"></i>
+      <p class="text-gray-400 text-sm">نیاز به اندروید</p>
+      <p class="text-xl font-bold text-white">7.0 و بالاتر</p>
+    </div>
+    <div>
+      <i class="fas fa-download text-[#00cc88] text-2xl mb-2"></i>
+      <p class="text-gray-400 text-sm">تعداد دانلود</p>
+      <p class="text-xl font-bold text-white">+50,000</p>
+    </div>
+    <div>
+      <i class="fas fa-calendar-check text-[#00cc88] text-2xl mb-2"></i>
+      <p class="text-gray-400 text-sm">آخرین بروزرسانی</p>
+      <p class="text-xl font-bold text-white">1 جولای 2026</p>
+    </div>
+  </div>
+</section>
+
+<!-- Download CTA Section -->
+<section id="download" class="py-24 container mx-auto px-6">
+  <div class="bg-gradient-to-r from-[#009966]/20 to-black rounded-3xl p-12 text-center neon-border relative overflow-hidden" data-aos="zoom-in">
+    <div class="absolute -top-20 -right-20 w-60 h-60 bg-[#009966] rounded-full filter blur-[100px] opacity-30 animate-pulse"></div>
+    <div class="relative z-10">
+      <img src="https://play-lh.googleusercontent.com/A_HHIh7SYygaSqQnE3kWN68mhHIsuowZ0cP1UDOnpZjJ5Qn0q0kRT-DiZImgWeTGFjt1lZ6_U3oki7ZjFipf=w240-h480-rw" alt="Zex VPN" class="w-24 h-24 rounded-3xl mx-auto mb-6 logo-shadow">
+      <h2 class="text-4xl font-bold mb-4">آماده تجربه اینترنت امن هستید؟</h2>
+      <p class="text-gray-300 mb-8 max-w-xl mx-auto text-lg">همین الان Zex VPN را دانلود کنید و هر زمان از دسترسی امن به اینترنت لذت ببرید.</p>
+      <a href="https://play.google.com/store/apps/details?id=com.vgh.app&hl=en" target="_blank" class="inline-flex items-center space-x-2 space-x-reverse bg-white hover:bg-gray-100 text-[#009966] px-10 py-4 rounded-xl text-lg font-bold transition transform hover:scale-105">
+        <i class="fab fa-google-play text-2xl"></i>
+        <span>دریافت از Google Play</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="border-t border-gray-900 py-12 bg-black">
+  <div class="container mx-auto px-6 text-center text-gray-500">
+    <div class="flex justify-center items-center space-x-3 space-x-reverse mb-4">
+      <img src="https://play-lh.googleusercontent.com/A_HHIh7SYygaSqQnE3kWN68mhHIsuowZ0cP1UDOnpZjJ5Qn0q0kRT-DiZImgWeTGFjt1lZ6_U3oki7ZjFipf=w240-h480-rw" alt="Zex VPN Logo" class="w-8 h-8 rounded-lg">
+      <span class="text-xl font-bold text-white">Zex VPN</span>
+    </div>
+    <p>© ۲۰۲۴ Zex VPN. تمامی حقوق محفوظ است.</p>
+    <div class="flex justify-center space-x-5 space-x-reverse mt-4 text-xl">
+      <a href="#" class="hover:text-[#00cc88] transition"><i class="fab fa-telegram"></i></a>
+      <a href="#" class="hover:text-[#00cc88] transition"><i class="fab fa-instagram"></i></a>
+      <a href="#" class="hover:text-[#00cc88] transition"><i class="fab fa-twitter"></i></a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Initialize AOS
+  AOS.init({
+    once: true,
+    offset: 80,
+    duration: 800,
+    easing: 'ease-out-cubic'
+  });
+
+  // --- Mockup Interactivity Logic ---
+  const connectBtn = document.getElementById('connectBtn');
+  const powerIcon = document.getElementById('powerIcon');
+  const stateText = document.getElementById('stateText');
+  const timerText = document.getElementById('timerText');
+  const countryCard = document.getElementById('countryCard');
+  const bottomSheet = document.getElementById('bottomSheet');
+  const sheetOverlay = document.getElementById('sheetOverlay');
+  const serverList = document.getElementById('serverList');
+  const flagDisplay = document.getElementById('flagDisplay');
+  const countryName = document.getElementById('countryName');
+
+  let isConnected = false;
+  let timerInterval;
+  let totalSeconds = 0;
+
+  const servers = [
+    { country: "United States", flag: "🇺🇸", ip: "10.20ms" },
+    { country: "Germany", flag: "🇩🇪", ip: "25.40ms" },
+    { country: "Japan", flag: "🇯🇵", ip: "45.10ms" },
+    { country: "United Kingdom", flag: "🇬🇧", ip: "30.20ms" },
+    { country: "France", flag: "🇫🇷", ip: "28.00ms" },
+    { country: "Canada", flag: "🇨🇦", ip: "15.30ms" },
+    { country: "Singapore", flag: "🇸🇬", ip: "50.60ms" },
+    { country: "Netherlands", flag: "🇳🇱", ip: "22.10ms" }
+  ];
+
+  // Populate Bottom Sheet
+  servers.forEach(server => {
+    const div = document.createElement('div');
+    div.className = 'flex items-center justify-between p-3 rounded-xl hover:bg-[#009966]/10 cursor-pointer transition border border-transparent hover:border-[#009966]/30';
+    div.innerHTML = `
+                <div class="flex items-center gap-4">
+                    <span class="text-2xl">${server.flag}</span>
+                    <div>
+                        <p class="text-white font-semibold">${server.country}</p>
+                        <p class="text-gray-500 text-xs">${server.ip}</p>
+                    </div>
+                </div>
+                <i class="fas fa-check-circle text-[#00cc88] opacity-0 transition-opacity check-icon"></i>
+            `;
+    div.addEventListener('click', () => {
+      flagDisplay.textContent = server.flag;
+      countryName.textContent = server.country;
+      closeBottomSheet();
     });
+    serverList.appendChild(div);
+  });
 
-    // FAQ آکاردئون
-    document.querySelectorAll(".faq-item").forEach((item) => {
-      const q = item.querySelector(".faq-question");
-      q.addEventListener("click", () => {
-        const isOpen = item.classList.contains("open");
-        document.querySelectorAll(".faq-item").forEach((i) => i.classList.remove("open"));
-        if (!isOpen) item.classList.add("open");
-        document.querySelectorAll(".faq-item").forEach((i) => {
-          const toggle = i.querySelector(".faq-toggle");
-          if (!toggle) return;
-          toggle.textContent = i.classList.contains("open") ? "−" : "+";
-        });
-      });
-    });
+  // Connect Button Logic
+  connectBtn.addEventListener('click', () => {
+    isConnected = !isConnected;
+    if (isConnected) {
+      stateText.textContent = "Connecting...";
+      stateText.classList.add('text-yellow-400');
+      stateText.classList.remove('text-white');
 
-    // اسکرول ریویل حرفه‌ای
-    const observer = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("in-view");
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.16 }
-    );
-    document.querySelectorAll(".reveal").forEach(el => observer.observe(el));
-  </script>
+      connectBtn.classList.add('pulse-active');
+      powerIcon.classList.remove('fa-power-off');
+      powerIcon.classList.add('fa-stop'); // Turns into square
+
+      // Simulate connecting...
+      setTimeout(() => {
+        stateText.textContent = "Connected";
+        stateText.classList.remove('text-yellow-400');
+        stateText.classList.add('text-[#00cc88]');
+        startTimer();
+      }, 1500);
+    } else {
+      stopTimer();
+      stateText.textContent = "Not Connected";
+      stateText.classList.remove('text-[#00cc88]', 'text-yellow-400');
+      stateText.classList.add('text-white');
+      timerText.textContent = "00:00:00";
+
+      connectBtn.classList.remove('pulse-active');
+      powerIcon.classList.remove('fa-stop');
+      powerIcon.classList.add('fa-power-off');
+    }
+  });
+
+  // Timer Logic
+  function startTimer() {
+    totalSeconds = 0;
+    timerInterval = setInterval(() => {
+      totalSeconds++;
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      timerText.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }, 1000);
+  }
+
+  function stopTimer() { clearInterval(timerInterval); }
+
+  // Bottom Sheet Logic
+  countryCard.addEventListener('click', openBottomSheet);
+  sheetOverlay.addEventListener('click', closeBottomSheet);
+
+  function openBottomSheet() {
+    bottomSheet.classList.add('active');
+    sheetOverlay.classList.add('active');
+  }
+
+  function closeBottomSheet() {
+    bottomSheet.classList.remove('active');
+    sheetOverlay.classList.remove('active');
+  }
+
+  // --- Parallax Mouse Move Effect ---
+  const blob1 = document.getElementById('blob1');
+  const blob2 = document.getElementById('blob2');
+
+  document.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 50;
+    const y = (e.clientY / window.innerHeight - 0.5) * 50;
+
+    blob1.style.transform = `translate(${x}px, ${y}px)`;
+    blob2.style.transform = `translate(${-x}px, ${-y}px)`;
+  });
+</script>
 </body>
 </html>

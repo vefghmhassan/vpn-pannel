@@ -4,7 +4,6 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -229,87 +228,15 @@ func findOrAssignNodes(reqKey string, ads bool, count int, now time.Time) ([]mod
 	if count <= 0 {
 		return []models.V2RayNode{}, nil
 	}
-	nodes := make([]models.V2RayNode, 0, count)
-	exclude := make([]uint, 0, count)
-	for i := 0; i < count; i++ {
-		slotKey := reqKey
-		if i > 0 {
-			slotKey = fmt.Sprintf("%s:%d", reqKey, i)
-		}
-		node, err := findOrAssignNode(slotKey, ads, now, exclude)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				if len(nodes) == 0 {
-					return nil, err
-				}
-				break
-			}
-			return nil, err
-		}
-		nodes = append(nodes, node)
-		exclude = append(exclude, node.ID)
+	var nodes []models.V2RayNode
+	if err := database.DB.Where("is_active = ? AND ads = ?", true, ads).
+		Order("RANDOM()").Limit(count).Find(&nodes).Error; err != nil {
+		return nil, err
+	}
+	if len(nodes) == 0 {
+		return nil, gorm.ErrRecordNotFound
 	}
 	return nodes, nil
-}
-
-func findOrAssignNode(reqKey string, ads bool, now time.Time, excludeIDs []uint) (models.V2RayNode, error) {
-	var lease models.V2RayLease
-	if err := database.DB.Where("request_key = ? AND ads = ? AND expires_at > ?", reqKey, ads, now).
-		Limit(1).Find(&lease).Error; err == nil && lease.ID != 0 {
-		var node models.V2RayNode
-		if !containsUint(excludeIDs, lease.NodeID) {
-			if err := database.DB.Where("id = ? AND is_active = ?", lease.NodeID, true).First(&node).Error; err == nil {
-				return node, nil
-			}
-		}
-	}
-
-	// Try to find a free node (not leased) first.
-	var leasedIDs []uint
-	database.DB.Model(&models.V2RayLease{}).
-		Where("ads = ? AND expires_at > ?", ads, now).
-		Pluck("node_id", &leasedIDs)
-
-	var node models.V2RayNode
-	q := database.DB.Where("is_active = ? AND ads = ?", true, ads)
-	if len(leasedIDs) > 0 {
-		q = q.Where("id NOT IN ?", leasedIDs)
-	}
-	if len(excludeIDs) > 0 {
-		q = q.Where("id NOT IN ?", excludeIDs)
-	}
-	if err := q.Order("RANDOM()").First(&node).Error; err != nil {
-		// Fallback: choose any active node (even if leased)
-		q2 := database.DB.Where("is_active = ? AND ads = ?", true, ads)
-		if len(excludeIDs) > 0 {
-			q2 = q2.Where("id NOT IN ?", excludeIDs)
-		}
-		if err2 := q2.Order("RANDOM()").First(&node).Error; err2 != nil {
-			return models.V2RayNode{}, err2
-		}
-	}
-
-	// Create or update lease for requester
-	expires := now.Add(30 * time.Minute)
-	if err := database.DB.Where("request_key = ? AND ads = ?", reqKey, ads).Limit(1).Find(&lease).Error; err == nil && lease.ID != 0 {
-		lease.NodeID = node.ID
-		lease.ExpiresAt = expires
-		_ = database.DB.Save(&lease).Error
-	} else {
-		lease = models.V2RayLease{RequestKey: reqKey, Ads: ads, NodeID: node.ID, ExpiresAt: expires}
-		_ = database.DB.Create(&lease).Error
-	}
-
-	return node, nil
-}
-
-func containsUint(list []uint, v uint) bool {
-	for _, item := range list {
-		if item == v {
-			return true
-		}
-	}
-	return false
 }
 
 func ApiCreateOutage(c *fiber.Ctx) error {
@@ -398,7 +325,11 @@ func ApiSPlash(c *fiber.Ctx) error {
 	resp := make([]SplashItemDTO, 0, len(splash))
 
 	for _, r := range splash {
-		vitem, _ := utils.DecryptValue(r.Value, int(r.ID))
+		vitem, err := utils.DecryptValue(r.Value, int(r.ID))
+		if err != nil || strings.TrimSpace(vitem) == "" {
+			// Decryption failed or produced empty result — use raw value as plaintext
+			vitem = r.Value
+		}
 		resp = append(resp, SplashItemDTO{
 			ID:        uint(r.ID),
 			Name:      r.Name,
@@ -419,7 +350,10 @@ func ApiSplashRefresh(c *fiber.Ctx) error {
 	}
 	resp := make([]SplashItemDTO, 0, len(items))
 	for _, r := range items {
-		vitem, _ := utils.DecryptValue(r.Value, int(r.ID))
+		vitem, err := utils.DecryptValue(r.Value, int(r.ID))
+		if err != nil || strings.TrimSpace(vitem) == "" {
+			vitem = r.Value
+		}
 		resp = append(resp, SplashItemDTO{
 			ID:        uint(r.ID),
 			Name:      r.Name,
@@ -451,19 +385,19 @@ func ApiSettings(c *fiber.Ctx) error {
 		}
 	}
 	return c.JSON(fiber.Map{
-		"ads_enabled_in_splash": s.AdsEnabledInSplash,
-		"show_ads_after_splash": s.ShowAdsAfterSplash,
-		"show_ads_on_main_page": s.ShowAdsOnMainPage,
-		"ads_reward_enabled":    s.AdsRewardEnabled,
-		"ads_app_open_enabled":  s.AdsAppOpenEnabled,
+		"ads_enabled_in_splash":  s.AdsEnabledInSplash,
+		"show_ads_after_splash":  s.ShowAdsAfterSplash,
+		"show_ads_on_main_page":  s.ShowAdsOnMainPage,
+		"ads_reward_enabled":     s.AdsRewardEnabled,
+		"ads_app_open_enabled":   s.AdsAppOpenEnabled,
 		"reward_display_percent": s.RewardDisplayPercent,
-		"current_version":       s.CurrentVersion,
-		"ad_unit_id":            s.AdUnitID,
-		"ads_reward_unit":       s.AdsRewardUnit,
-		"ads_unit_open":         s.AdsUnitOpen,
-		"ads_application_id":    s.AdsApplicationID,
-		"updated_app":           s.UpdateEnable,
-		"privacy_url":           s.PrivacyURL,
+		"current_version":        s.CurrentVersion,
+		"ad_unit_id":             s.AdUnitID,
+		"ads_reward_unit":        s.AdsRewardUnit,
+		"ads_unit_open":          s.AdsUnitOpen,
+		"ads_application_id":     s.AdsApplicationID,
+		"updated_app":            s.UpdateEnable,
+		"privacy_url":            s.PrivacyURL,
 		"connected_timeout":      s.ConnectedTimeoutSeconds,
 		"splash_conf_count":      s.SplashConfCount,
 		"link_app":               s.LinkApp,

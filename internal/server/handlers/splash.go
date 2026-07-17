@@ -1,17 +1,19 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"vpnpannel/internal/database"
 	"vpnpannel/internal/models"
+	"vpnpannel/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func SplashList(c *fiber.Ctx) error {
-	// pagination params
 	const pageSize = 15
 	pageStr := c.Query("page", "1")
 	page, err := strconv.Atoi(pageStr)
@@ -52,7 +54,28 @@ func SplashNewPage(c *fiber.Ctx) error {
 	})
 }
 
+type splashImportItem struct {
+	ID       uint64 `json:"id"`
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+	ServerID int    `json:"serverId"`
+	Price    int    `json:"price"`
+	Usage    int    `json:"usage"`
+}
+
+type splashImportPayload struct {
+	Splash []splashImportItem `json:"splash"`
+}
+
 func SplashCreate(c *fiber.Ctx) error {
+	jsonData := strings.TrimSpace(c.FormValue("json_data"))
+
+	// ── Bulk JSON import mode ──
+	if jsonData != "" {
+		return splashBulkImport(c, jsonData)
+	}
+
+	// ── Single entry mode ──
 	idStr := c.FormValue("id")
 	name := c.FormValue("name")
 	value := c.FormValue("value")
@@ -61,11 +84,17 @@ func SplashCreate(c *fiber.Ctx) error {
 	serverIDStr := c.FormValue("serverId")
 
 	if idStr == "" || name == "" || value == "" {
-		return c.Status(http.StatusBadRequest).SendString("missing required fields")
+		return c.Status(http.StatusBadRequest).Render("splash/new", fiber.Map{
+			"title": "New Splash Protocol",
+			"error": "فیلدهای الزامی را پر کنید",
+		})
 	}
 	id64, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
-		return c.Status(http.StatusBadRequest).SendString("invalid id")
+		return c.Status(http.StatusBadRequest).Render("splash/new", fiber.Map{
+			"title": "New Splash Protocol",
+			"error": "شناسه نامعتبر است",
+		})
 	}
 	price, _ := strconv.Atoi(priceStr)
 	usage, _ := strconv.Atoi(usageStr)
@@ -79,10 +108,8 @@ func SplashCreate(c *fiber.Ctx) error {
 		Usage:    usage,
 		ServerID: serverID,
 	}
-	// Upsert-like: ignore if exists
 	var existing models.SplashProtocol
 	if err := database.DB.First(&existing, id64).Error; err == nil {
-		// exists: update fields (except ID)
 		existing.Name = rec.Name
 		existing.Value = rec.Value
 		existing.Price = rec.Price
@@ -97,4 +124,82 @@ func SplashCreate(c *fiber.Ctx) error {
 		}
 	}
 	return c.Redirect("/admin/splash")
+}
+
+func splashBulkImport(c *fiber.Ctx, rawBody string) error {
+	var payload splashImportPayload
+	if err := json.Unmarshal([]byte(rawBody), &payload); err != nil {
+		return c.Status(http.StatusBadRequest).Render("splash/new", fiber.Map{
+			"title":   "New Splash Protocol",
+			"error":   "JSON نامعتبر است: " + err.Error(),
+			"jsonRaw": rawBody,
+		})
+	}
+
+	if len(payload.Splash) == 0 {
+		return c.Status(http.StatusBadRequest).Render("splash/new", fiber.Map{
+			"title":   "New Splash Protocol",
+			"error":   "هیچ آیتمی در JSON یافت نشد",
+			"jsonRaw": rawBody,
+		})
+	}
+
+	var imported, updated, skipped int
+	var importErrors []string
+
+	for _, item := range payload.Splash {
+		if item.ID == 0 || item.Name == "" || item.Value == "" {
+			skipped++
+			continue
+		}
+
+		// Try decrypt; if fails, use as plaintext
+		storedValue := item.Value
+		if decrypted, err := utils.DecryptValue(item.Value, int(item.ID)); err == nil && strings.TrimSpace(decrypted) != "" {
+			storedValue = decrypted
+		}
+
+		var existing models.SplashProtocol
+		if err := database.DB.First(&existing, item.ID).Error; err == nil {
+			existing.Name = item.Name
+			existing.Value = storedValue
+			existing.Price = item.Price
+			existing.Usage = item.Usage
+			existing.ServerID = item.ServerID
+			if err := database.DB.Save(&existing).Error; err != nil {
+				importErrors = append(importErrors, "خطا در بروزرسانی id="+strconv.FormatUint(item.ID, 10))
+			} else {
+				updated++
+			}
+		} else {
+			rec := models.SplashProtocol{
+				ID:       item.ID,
+				Name:     item.Name,
+				Value:    storedValue,
+				Price:    item.Price,
+				Usage:    item.Usage,
+				ServerID: item.ServerID,
+			}
+			if err := database.DB.Create(&rec).Error; err != nil {
+				importErrors = append(importErrors, "خطا در ایجاد id="+strconv.FormatUint(item.ID, 10))
+			} else {
+				imported++
+			}
+		}
+	}
+
+	msg := "وارد کردن تمام شد: " + strconv.Itoa(imported) + " جدید، " + strconv.Itoa(updated) + " بروزرسانی، " + strconv.Itoa(skipped) + " رد شد"
+	if len(importErrors) > 0 {
+		msg += " (" + strconv.Itoa(len(importErrors)) + " خطا)"
+	}
+
+	return c.Render("splash/new", fiber.Map{
+		"title":       "New Splash Protocol",
+		"success":     msg,
+		"errors":      importErrors,
+		"imported":    imported,
+		"updated":     updated,
+		"skipped":     skipped,
+		"importCount": len(payload.Splash),
+	})
 }

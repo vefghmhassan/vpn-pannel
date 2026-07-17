@@ -1,37 +1,96 @@
-<h1 class="text-2xl font-bold mb-4">ایجاد Splash Protocol</h1>
+{{if .success}}
+<div class="alert alert-success mb-4">
+  <span>{{.success}}</span>
+</div>
+{{end}}
 
-<form method="post" action="/admin/splash/new" class="space-y-4">
-  <div class="form-control">
-    <label class="label"><span class="label-text">ID (عدد یکتا)</span></label>
-    <input class="input input-bordered" name="id" required />
+{{if .error}}
+<div class="alert alert-error mb-4">
+  <span>{{.error}}</span>
+</div>
+{{end}}
+
+{{if .errors}}
+<div class="alert alert-warning mb-4">
+  <div>
+    <span class="font-bold">خطاها:</span>
+    <ul class="list-disc list-inside mt-1">
+      {{range .errors}}
+      <li>{{.}}</li>
+      {{end}}
+    </ul>
   </div>
-  <div class="form-control">
-    <label class="label"><span class="label-text">نام</span></label>
-    <input class="input input-bordered" name="name" required />
-  </div>
-  <div class="form-control">
-    <label class="label"><span class="label-text">value (Base64)</span></label>
-    <textarea class="textarea textarea-bordered" name="value" rows="5" required></textarea>
-  </div>
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+</div>
+{{end}}
+
+<!-- Tabs -->
+<div role="tablist" class="tabs tabs-bordered mb-6">
+  <a role="tab" class="tab tab-active" id="tab-single" onclick="showTab('single')">افزودن تکی</a>
+  <a role="tab" class="tab" id="tab-json" onclick="showTab('json')">افزودن دسته‌ای (JSON)</a>
+</div>
+
+<!-- Single entry form -->
+<div id="panel-single">
+  <form method="post" action="/admin/splash/new" class="space-y-4">
     <div class="form-control">
-      <label class="label"><span class="label-text">price</span></label>
-      <input class="input input-bordered" name="price" value="0" />
+      <label class="label"><span class="label-text">ID (عدد یکتا)</span></label>
+      <input class="input input-bordered" name="id" required />
     </div>
     <div class="form-control">
-      <label class="label"><span class="label-text">usage</span></label>
-      <input class="input input-bordered" name="usage" value="0" />
+      <label class="label"><span class="label-text">نام</span></label>
+      <input class="input input-bordered" name="name" required />
     </div>
     <div class="form-control">
-      <label class="label"><span class="label-text">serverId</span></label>
-      <input class="input input-bordered" name="serverId" value="0" />
+      <label class="label"><span class="label-text">value (لینک / Base64 / JSON)</span></label>
+      <textarea class="textarea textarea-bordered" name="value" rows="5" required></textarea>
     </div>
-  </div>
-  <div class="flex gap-2">
-    <button class="btn btn-primary" type="submit">ثبت</button>
-    <a class="btn" href="/admin/splash">بازگشت</a>
-  </div>
-</form>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="form-control">
+        <label class="label"><span class="label-text">price</span></label>
+        <input class="input input-bordered" name="price" value="0" />
+      </div>
+      <div class="form-control">
+        <label class="label"><span class="label-text">usage</span></label>
+        <input class="input input-bordered" name="usage" value="0" />
+      </div>
+      <div class="form-control">
+        <label class="label"><span class="label-text">serverId</span></label>
+        <input class="input input-bordered" name="serverId" value="0" />
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-primary" type="submit">ثبت</button>
+      <a class="btn" href="/admin/splash">بازگشت</a>
+    </div>
+  </form>
+</div>
 
+<!-- JSON bulk import form -->
+<div id="panel-json" style="display:none;">
+  <form method="post" action="/admin/splash/new" class="space-y-4">
+    <div class="form-control">
+      <label class="label">
+        <span class="label-text">JSON Data</span>
+        <span class="label-text-alt text-xs opacity-60">فرمت: { "splash": [ { "id": 123, "name": "...", "value": "vless://...", "serverId": 315 } ] }</span>
+      </label>
+      <textarea class="textarea textarea-bordered font-mono text-sm" name="json_data" rows="20"
+        placeholder='{"splash": [{"id": 123, "name": "Germany", "value": "vless://...", "serverId": 315}]}'>{{.jsonRaw}}</textarea>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-primary" type="submit">وارد کردن</button>
+      <a class="btn" href="/admin/splash">بازگشت</a>
+    </div>
+  </form>
+</div>
 
-
+<script>
+function showTab(tab) {
+  document.getElementById('panel-single').style.display = tab === 'single' ? '' : 'none';
+  document.getElementById('panel-json').style.display   = tab === 'json'   ? '' : 'none';
+  document.getElementById('tab-single').className = tab === 'single' ? 'tab tab-active' : 'tab';
+  document.getElementById('tab-json').className   = tab === 'json'   ? 'tab tab-active' : 'tab';
+}
+// If JSON was submitted and returned with data, auto-switch to JSON tab
+{{if .jsonRaw}}showTab('json');{{end}}
+{{if .importCount}}showTab('json');{{end}}
+</script>
