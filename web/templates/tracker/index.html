@@ -1,0 +1,41 @@
+<div class="bg-base-100 rounded-box shadow p-4 mb-4 flex items-center justify-between flex-wrap gap-2">
+  <div>
+    <h1 class="text-2xl font-bold">ترکر کاربران</h1>
+    <p class="text-xs opacity-60 mt-1">تعداد باز کردن اپ به ازای هر کاربر، مرتب‌شده بر اساس فعالیت امروز</p>
+  </div>
+</div>
+
+{{ template "partials/daterange" .range }}
+
+<div class="card bg-base-100 shadow">
+  <div class="card-body p-3">
+    <div class="overflow-x-auto">
+      <table class="table table-sm table-zebra">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>کاربر</th>
+            <th>ایمیل</th>
+            <th>امروز</th>
+            <th>این ماه</th>
+            <th>بازه انتخابی</th>
+            <th>آخرین بازدید</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .rows }}
+          <tr>
+            <td class="opacity-60">{{ .User.ID }}</td>
+            <td><a class="link link-hover font-medium" href="/admin/users/{{ .User.ID }}">{{ .User.Username }}</a></td>
+            <td class="opacity-60 text-xs">{{ .User.Email }}</td>
+            <td><div class="badge badge-success badge-outline">{{ .OpensToday }}</div></td>
+            <td class="opacity-80">{{ .OpensMonth }}</td>
+            <td><div class="badge badge-info badge-outline">{{ .OpensRange }}</div></td>
+            <td class="text-xs opacity-80">{{ fmtDate .User.LastSeenAt $.calendar }}</td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

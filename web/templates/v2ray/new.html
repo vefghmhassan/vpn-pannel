@@ -17,6 +17,19 @@
         <div class="label"><span class="label-text">لیست کانفیگ‌ها (هر خط یک لینک)</span></div>
         <textarea name="links" class="textarea textarea-bordered" rows="6" placeholder="vmess://...\nvless://...\ntrojan://..."></textarea>
       </label>
+      <div class="border border-base-300 rounded-box p-3 mt-3 bg-base-200/40">
+        <h3 class="font-semibold text-sm mb-2">تنظیمات دسته‌ای</h3>
+        <label class="form-control">
+          <div class="label"><span class="label-text">نام پایه برای این دسته (اختیاری)</span></div>
+          <input name="base_name" maxlength="80" class="input input-bordered" placeholder="مثلاً Germany" />
+          <div class="label">
+            <span class="label-text-alt opacity-70">
+              اگر پر شود، همه کانفیگ‌های این دسته این نام را با یک شماره می‌گیرند (Germany-1، Germany-2، ...).
+              اگر خالی بماند، از نام داخل خود لینک استفاده می‌شود و در صورت تکراری بودن، به‌جای حذف شدن، شماره خودکار می‌گیرد.
+            </span>
+          </div>
+        </label>
+      </div>
     </div>
 
     <div id="mode-manual" style="display:none">
@@ -47,15 +60,7 @@
         <input name="tags" class="input input-bordered" />
       </label>
     </div>
-    <label class="form-control mt-3">
-      <div class="label"><span class="label-text">کشور</span></div>
-      <select name="country" class="select select-bordered">
-        <option value="">انتخاب کشور</option>
-        {{ range .countries }}
-          <option value="{{ . }}">{{ . }}</option>
-        {{ end }}
-      </select>
-    </label>
+    {{ template "partials/country_picker" .countryPicker }}
     <label class="label cursor-pointer justify-start gap-3 mt-4">
       <input type="checkbox" name="ads" class="checkbox" />
       <span class="label-text">Ads</span>

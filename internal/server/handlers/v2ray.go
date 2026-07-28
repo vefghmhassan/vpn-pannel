@@ -3,26 +3,27 @@ package handlers
 import (
 	"bufio"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 
 	"vpnpannel/internal/database"
 	"vpnpannel/internal/models"
 	"vpnpannel/internal/services"
 )
 
-func V2RayList(c *fiber.Ctx) error {
-	address := strings.TrimSpace(c.Query("address"))
-	protocol := strings.TrimSpace(c.Query("protocol"))
-	adsFilter := strings.TrimSpace(c.Query("ads"))
-	activeFilter := strings.TrimSpace(c.Query("active"))
+var v2rayAllowedPageSizes = map[int]bool{25: true, 50: true, 100: true, 200: true}
 
-	var nodes []models.V2RayNode
+const v2rayDefaultPageSize = 50
+
+func v2rayFilteredQuery(address, protocol, adsFilter, activeFilter string) *gorm.DB {
 	q := database.DB.Model(&models.V2RayNode{})
 	if address != "" {
 		q = q.Where("address = ?", address)
@@ -40,17 +41,72 @@ func V2RayList(c *fiber.Ctx) error {
 	} else if activeFilter == "false" {
 		q = q.Where("is_active = ?", false)
 	}
-	q.Order("id desc").Find(&nodes)
+	return q
+}
+
+func V2RayList(c *fiber.Ctx) error {
+	address := strings.TrimSpace(c.Query("address"))
+	protocol := strings.TrimSpace(c.Query("protocol"))
+	adsFilter := strings.TrimSpace(c.Query("ads"))
+	activeFilter := strings.TrimSpace(c.Query("active"))
+
+	pageSize := v2rayDefaultPageSize
+	if v, err := strconv.Atoi(c.Query("page_size")); err == nil && v2rayAllowedPageSizes[v] {
+		pageSize = v
+	}
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+
+	var total int64
+	v2rayFilteredQuery(address, protocol, adsFilter, activeFilter).Count(&total)
+	totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	var nodes []models.V2RayNode
+	v2rayFilteredQuery(address, protocol, adsFilter, activeFilter).
+		Order("id desc").Offset((page - 1) * pageSize).Limit(pageSize).Find(&nodes)
 
 	var addresses []string
 	_ = database.DB.Model(&models.V2RayNode{}).Distinct().Order("address").Pluck("address", &addresses).Error
 	var protocols []string
 	_ = database.DB.Model(&models.V2RayNode{}).Distinct().Order("protocol").Pluck("protocol", &protocols).Error
+
+	qs := url.Values{}
+	if address != "" {
+		qs.Set("address", address)
+	}
+	if protocol != "" {
+		qs.Set("protocol", protocol)
+	}
+	if adsFilter != "" {
+		qs.Set("ads", adsFilter)
+	}
+	if activeFilter != "" {
+		qs.Set("active", activeFilter)
+	}
+	qs.Set("page_size", strconv.Itoa(pageSize))
+
 	return c.Render("v2ray/index", fiber.Map{
-		"title":     "V2Ray Nodes",
-		"nodes":     nodes,
-		"addresses": addresses,
-		"protocols": protocols,
+		"title":      "V2Ray Nodes",
+		"nodes":      nodes,
+		"addresses":  addresses,
+		"protocols":  protocols,
+		"page":       page,
+		"totalPages": totalPages,
+		"total":      total,
+		"pageSize":   pageSize,
+		"hasPrev":    page > 1,
+		"hasNext":    page < totalPages,
+		"prevPage":   page - 1,
+		"nextPage":   page + 1,
+		"pageQuery":  qs.Encode(),
 		"filters": fiber.Map{
 			"address":  address,
 			"protocol": protocol,
@@ -63,8 +119,8 @@ func V2RayList(c *fiber.Ctx) error {
 func V2RayNewPage(c *fiber.Ctx) error {
 	countries := listCountryCodes()
 	return c.Render("v2ray/new", fiber.Map{
-		"title":     "Add V2Ray Node",
-		"countries": countries,
+		"title":         "Add V2Ray Node",
+		"countryPicker": countryPickerVM{Countries: countries},
 	})
 }
 
@@ -76,9 +132,9 @@ func V2RayEditPage(c *fiber.Ctx) error {
 	}
 	countries := listCountryCodes()
 	return c.Render("v2ray/edit", fiber.Map{
-		"title":     "Edit V2Ray Node",
-		"node":      node,
-		"countries": countries,
+		"title":         "Edit V2Ray Node",
+		"node":          node,
+		"countryPicker": countryPickerVM{Countries: countries, Selected: node.CountryCode},
 	})
 }
 
@@ -94,6 +150,7 @@ func V2RayCreate(c *fiber.Ctx) error {
 		Mode     string `form:"mode"` // link or manual
 		Ads      string `form:"ads"`
 		Country  string `form:"country"`
+		BaseName string `form:"base_name"`
 	}
 	if err := c.BodyParser(&in); err != nil {
 		return fiber.ErrBadRequest
@@ -107,6 +164,16 @@ func V2RayCreate(c *fiber.Ctx) error {
 
 	var node models.V2RayNode
 	if in.Mode == "link" && strings.TrimSpace(in.Links) != "" {
+		baseName := strings.TrimSpace(in.BaseName)
+		if len(baseName) > 80 {
+			baseName = baseName[:80]
+		}
+		var batchAllocator *nameAllocator
+		if baseName != "" {
+			batchAllocator = newNameAllocator(baseName)
+		}
+		perLineAllocators := map[string]*nameAllocator{}
+
 		added := 0
 		failed := 0
 		scanner := bufio.NewScanner(strings.NewReader(in.Links))
@@ -120,13 +187,21 @@ func V2RayCreate(c *fiber.Ctx) error {
 				failed++
 				continue
 			}
-			name := strings.TrimSpace(p.Name)
-			if name == "" {
-				name = fmt.Sprintf("%s:%d", p.Address, p.Port)
-			}
-			if v2rayNameExists(name) {
-				failed++
-				continue
+
+			var name string
+			if batchAllocator != nil {
+				name = batchAllocator.allocate(true)
+			} else {
+				remark := strings.TrimSpace(p.Name)
+				if remark == "" {
+					remark = fmt.Sprintf("%s:%d", p.Address, p.Port)
+				}
+				alloc, ok := perLineAllocators[remark]
+				if !ok {
+					alloc = newNameAllocator(remark)
+					perLineAllocators[remark] = alloc
+				}
+				name = alloc.allocate(false)
 			}
 			rawLink := line
 			if p.RawConfig != "" {
@@ -281,6 +356,11 @@ func V2RayUpdate(c *fiber.Ctx) error {
 	return c.Redirect("/admin/v2ray")
 }
 
+type countryPickerVM struct {
+	Countries []string
+	Selected  string
+}
+
 func listCountryCodes() []string {
 	entries, err := os.ReadDir("country")
 	if err != nil {
@@ -319,6 +399,56 @@ func v2rayNameExistsExcept(name string, id uint) bool {
 	var count int64
 	database.DB.Model(&models.V2RayNode{}).Where("name = ? AND id <> ?", name, id).Count(&count)
 	return count > 0
+}
+
+const nameNumberSeparator = "-"
+
+// nameAllocator hands out unique names based on a base string, numbering
+// collisions as "base-2", "base-3", etc. It loads existing matches from the
+// DB once (rather than per-row) so bulk imports of ~1000 links stay fast.
+type nameAllocator struct {
+	base  string
+	taken map[string]bool
+	next  int
+}
+
+func newNameAllocator(base string) *nameAllocator {
+	taken := map[string]bool{}
+	var names []string
+	database.DB.Model(&models.V2RayNode{}).
+		Where("name = ? OR name LIKE ?", base, base+nameNumberSeparator+"%").
+		Pluck("name", &names)
+
+	maxN := 0
+	re := regexp.MustCompile("^" + regexp.QuoteMeta(base+nameNumberSeparator) + `(\d+)$`)
+	for _, n := range names {
+		taken[n] = true
+		if m := re.FindStringSubmatch(n); m != nil {
+			if v, err := strconv.Atoi(m[1]); err == nil && v > maxN {
+				maxN = v
+			}
+		}
+	}
+	return &nameAllocator{base: base, taken: taken, next: maxN + 1}
+}
+
+// allocate returns a free name derived from the allocator's base. When
+// forceNumber is false, the bare base name is returned once (if unused)
+// before numbering kicks in; when true, every call returns a numbered form
+// starting at 1 (or continuing after any pre-existing "base-N" names).
+func (a *nameAllocator) allocate(forceNumber bool) string {
+	if !forceNumber && !a.taken[a.base] {
+		a.taken[a.base] = true
+		return a.base
+	}
+	for {
+		candidate := fmt.Sprintf("%s%s%d", a.base, nameNumberSeparator, a.next)
+		a.next++
+		if !a.taken[candidate] {
+			a.taken[candidate] = true
+			return candidate
+		}
+	}
 }
 
 func V2RayDelete(c *fiber.Ctx) error {

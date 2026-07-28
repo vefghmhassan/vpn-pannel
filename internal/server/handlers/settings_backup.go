@@ -48,6 +48,7 @@ type AppSettingsBackup struct {
 	ReleaseNotes            string `json:"release_notes"`
 	ConnectionTimer         int64  `json:"connection_timer"`
 	CurrentVersionCode      int    `json:"current_version_code"`
+	WheelEnabled            bool   `json:"wheel_enabled"`
 }
 
 type V2RayNodeBackup struct {
@@ -124,6 +125,7 @@ func SettingsExport(c *fiber.Ctx) error {
 			ReleaseNotes:            s.ReleaseNotes,
 			ConnectionTimer:         s.ConnectionTimer,
 			CurrentVersionCode:      s.CurrentVersionCode,
+			WheelEnabled:            s.WheelEnabled,
 		},
 		V2RayNodes:      make([]V2RayNodeBackup, 0, len(nodes)),
 		SplashProtocols: make([]SplashProtocolBackup, 0, len(splash)),
@@ -251,6 +253,7 @@ func applyAppSettings(dst *models.AppSettings, in AppSettingsBackup) {
 	dst.ReleaseNotes = in.ReleaseNotes
 	dst.ConnectionTimer = in.ConnectionTimer
 	dst.CurrentVersionCode = in.CurrentVersionCode
+	dst.WheelEnabled = in.WheelEnabled
 }
 
 func upsertV2RayNodes(tx *gorm.DB, items []V2RayNodeBackup) error {

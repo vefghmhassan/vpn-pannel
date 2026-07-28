@@ -45,15 +45,7 @@
       <p class="text-xs opacity-70 mt-2">با ذخیره، همه فیلدها از روی لینک جایگزین می‌شوند.</p>
     </div>
 
-    <label class="form-control mt-3">
-      <div class="label"><span class="label-text">کشور</span></div>
-      <select name="country" class="select select-bordered">
-        <option value="">انتخاب کشور</option>
-        {{ range .countries }}
-          <option value="{{ . }}" {{ if eq $.node.CountryCode . }}selected{{ end }}>{{ . }}</option>
-        {{ end }}
-      </select>
-    </label>
+    {{ template "partials/country_picker" .countryPicker }}
     <label class="label cursor-pointer justify-start gap-3 mt-4">
       <input type="checkbox" name="ads" class="checkbox" {{ if .node.Ads }}checked{{ end }} />
       <span class="label-text">Ads</span>

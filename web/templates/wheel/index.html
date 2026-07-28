@@ -1,0 +1,224 @@
+<div class="bg-base-100 rounded-box shadow p-3 mb-4 flex items-center justify-between flex-wrap gap-2">
+  <h1 class="text-2xl font-bold">گردونه شانس</h1>
+  <div class="flex items-center gap-3 text-sm">
+    <span>تعداد بخش‌ها: <b id="segCount">0</b> / {{ .maxSegments }}</span>
+    <span>مجموع وزن فعال: <b id="totalWeight">{{ .totalWeight }}</b></span>
+  </div>
+</div>
+
+<p class="text-sm opacity-70 mb-4">
+  هر بخش یک وزن شانس دارد؛ لازم نیست جمع وزن‌ها ۱۰۰ شود. درصد مؤثر هر بخش به‌صورت زنده محاسبه می‌شود.
+  رنگ را انتخاب کنید یا گزینهٔ «رندوم» را بزنید تا سمت سرور رنگ تصادفی اساین شود.
+</p>
+
+<form method="post" action="/admin/wheel" id="wheelForm">
+  <input type="hidden" name="segments_json" id="segmentsJson" />
+
+  <div class="card bg-base-100 shadow mb-4">
+    <div class="card-body p-3">
+      <div class="flex items-center gap-2 mb-3">
+        <button type="button" class="btn btn-sm btn-primary" id="addRowBtn">افزودن بخش</button>
+        <span class="text-xs opacity-70">می‌توانید تا {{ .maxSegments }} بخش طراحی کنید</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>نوع نمایش</th>
+              <th>متن</th>
+              <th>آیکون (emoji یا URL)</th>
+              <th>نوع جایزه</th>
+              <th>مقدار (دقیقه)</th>
+              <th>رنگ</th>
+              <th>وزن</th>
+              <th>درصد</th>
+              <th>فعال</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="segRows">
+            {{ range .segments }}
+            <tr class="seg-row">
+              <td class="js-index">1</td>
+              <td>
+                <select class="select select-bordered select-sm js-display-type">
+                  <option value="text" {{ if eq .DisplayType "text" }}selected{{ end }}>متن</option>
+                  <option value="icon" {{ if eq .DisplayType "icon" }}selected{{ end }}>آیکون</option>
+                </select>
+              </td>
+              <td><input type="text" class="input input-bordered input-sm w-28 js-label" value="{{ .Label }}" /></td>
+              <td><input type="text" class="input input-bordered input-sm w-28 js-icon" value="{{ .Icon }}" /></td>
+              <td>
+                <select class="select select-bordered select-sm js-reward-type">
+                  <option value="time" {{ if eq .RewardType "time" }}selected{{ end }}>تایم</option>
+                  <option value="premium" {{ if eq .RewardType "premium" }}selected{{ end }}>پریمیوم</option>
+                  <option value="none" {{ if eq .RewardType "none" }}selected{{ end }}>پوچ</option>
+                </select>
+              </td>
+              <td><input type="number" min="0" class="input input-bordered input-sm w-20 js-reward-value" value="{{ .RewardValue }}" /></td>
+              <td>
+                <div class="flex items-center gap-1">
+                  <input type="color" class="js-color" value="{{ if .Color }}{{ .Color }}{{ else }}#3b82f6{{ end }}" {{ if not .Color }}disabled{{ end }} />
+                  <label class="label cursor-pointer gap-1 p-0">
+                    <input type="checkbox" class="checkbox checkbox-xs js-random" {{ if not .Color }}checked{{ end }} />
+                    <span class="text-xs">رندوم</span>
+                  </label>
+                </div>
+              </td>
+              <td><input type="number" min="0" class="input input-bordered input-sm w-16 js-weight" value="{{ .Weight }}" /></td>
+              <td class="js-percent whitespace-nowrap">0%</td>
+              <td><input type="checkbox" class="toggle toggle-sm toggle-primary js-active" {{ if .IsActive }}checked{{ end }} /></td>
+              <td><button type="button" class="btn btn-xs btn-error js-remove">حذف</button></td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex gap-2">
+    <button class="btn btn-primary" type="submit">ذخیره تغییرات</button>
+    <a class="btn" href="/admin">بازگشت</a>
+  </div>
+</form>
+
+<!-- blank row template used when adding a new segment -->
+<template id="rowTemplate">
+  <tr class="seg-row">
+    <td class="js-index">1</td>
+    <td>
+      <select class="select select-bordered select-sm js-display-type">
+        <option value="text" selected>متن</option>
+        <option value="icon">آیکون</option>
+      </select>
+    </td>
+    <td><input type="text" class="input input-bordered input-sm w-28 js-label" value="" /></td>
+    <td><input type="text" class="input input-bordered input-sm w-28 js-icon" value="" /></td>
+    <td>
+      <select class="select select-bordered select-sm js-reward-type">
+        <option value="time">تایم</option>
+        <option value="premium">پریمیوم</option>
+        <option value="none" selected>پوچ</option>
+      </select>
+    </td>
+    <td><input type="number" min="0" class="input input-bordered input-sm w-20 js-reward-value" value="0" /></td>
+    <td>
+      <div class="flex items-center gap-1">
+        <input type="color" class="js-color" value="#3b82f6" disabled />
+        <label class="label cursor-pointer gap-1 p-0">
+          <input type="checkbox" class="checkbox checkbox-xs js-random" checked />
+          <span class="text-xs">رندوم</span>
+        </label>
+      </div>
+    </td>
+    <td><input type="number" min="0" class="input input-bordered input-sm w-16 js-weight" value="1" /></td>
+    <td class="js-percent whitespace-nowrap">0%</td>
+    <td><input type="checkbox" class="toggle toggle-sm toggle-primary js-active" checked /></td>
+    <td><button type="button" class="btn btn-xs btn-error js-remove">حذف</button></td>
+  </tr>
+</template>
+
+<script>
+  (function () {
+    var tbody = document.getElementById("segRows");
+    var form = document.getElementById("wheelForm");
+    var hidden = document.getElementById("segmentsJson");
+    var tpl = document.getElementById("rowTemplate");
+    var addBtn = document.getElementById("addRowBtn");
+    var totalWeightEl = document.getElementById("totalWeight");
+    var countEl = document.getElementById("segCount");
+
+    function rows() {
+      return Array.prototype.slice.call(tbody.querySelectorAll("tr.seg-row"));
+    }
+
+    function renumber() {
+      rows().forEach(function (tr, i) {
+        tr.querySelector(".js-index").textContent = i + 1;
+      });
+    }
+
+    function recalc() {
+      var list = rows();
+      var total = 0;
+      list.forEach(function (tr) {
+        var active = tr.querySelector(".js-active").checked;
+        var w = parseInt(tr.querySelector(".js-weight").value, 10) || 0;
+        if (active && w > 0) total += w;
+      });
+      list.forEach(function (tr) {
+        var active = tr.querySelector(".js-active").checked;
+        var w = parseInt(tr.querySelector(".js-weight").value, 10) || 0;
+        var pct = 0;
+        if (active && w > 0 && total > 0) pct = (w / total) * 100;
+        tr.querySelector(".js-percent").textContent = pct.toFixed(2) + "%";
+      });
+      totalWeightEl.textContent = total;
+      countEl.textContent = list.length;
+    }
+
+    function syncRandom(tr) {
+      var random = tr.querySelector(".js-random");
+      var color = tr.querySelector(".js-color");
+      color.disabled = random.checked;
+    }
+
+    function addRow() {
+      if (rows().length >= {{ .maxSegments }}) {
+        alert("حداکثر {{ .maxSegments }} بخش مجاز است.");
+        return;
+      }
+      var frag = tpl.content.cloneNode(true);
+      tbody.appendChild(frag);
+      var tr = tbody.lastElementChild;
+      syncRandom(tr);
+      renumber();
+      recalc();
+    }
+
+    addBtn.addEventListener("click", addRow);
+
+    tbody.addEventListener("click", function (e) {
+      var btn = e.target.closest(".js-remove");
+      if (!btn) return;
+      var tr = btn.closest("tr.seg-row");
+      if (tr) tr.remove();
+      renumber();
+      recalc();
+    });
+
+    tbody.addEventListener("input", recalc);
+    tbody.addEventListener("change", function (e) {
+      if (e.target.classList.contains("js-random")) {
+        syncRandom(e.target.closest("tr.seg-row"));
+      }
+      recalc();
+    });
+
+    form.addEventListener("submit", function () {
+      var data = rows().map(function (tr) {
+        var random = tr.querySelector(".js-random").checked;
+        return {
+          displayType: tr.querySelector(".js-display-type").value,
+          label: tr.querySelector(".js-label").value.trim(),
+          icon: tr.querySelector(".js-icon").value.trim(),
+          rewardType: tr.querySelector(".js-reward-type").value,
+          rewardValue: parseInt(tr.querySelector(".js-reward-value").value, 10) || 0,
+          color: random ? "" : tr.querySelector(".js-color").value,
+          weight: parseInt(tr.querySelector(".js-weight").value, 10) || 0,
+          isActive: tr.querySelector(".js-active").checked
+        };
+      });
+      hidden.value = JSON.stringify(data);
+    });
+
+    // init existing rows
+    rows().forEach(syncRandom);
+    if (rows().length === 0) addRow();
+    renumber();
+    recalc();
+  })();
+</script>

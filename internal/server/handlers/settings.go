@@ -35,6 +35,7 @@ func SettingsUpdate(c *fiber.Ctx) error {
 	s.ShowAdsOnMainPage = c.FormValue("show_ads_on_main_page") != ""
 	s.AdsRewardEnabled = c.FormValue("ads_reward_enabled") != ""
 	s.AdsAppOpenEnabled = c.FormValue("ads_app_open_enabled") != ""
+	s.WheelEnabled = c.FormValue("wheel_enabled") != ""
 	if v := c.FormValue("current_version"); v != "" {
 		s.CurrentVersion = v
 	}

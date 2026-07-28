@@ -373,8 +373,21 @@ func extractLinks(text string) []string {
 	protoList := []string{"vless://", "vmess://", "trojan://", "ss://"}
 	for _, proto := range protoList {
 		re := regexp.MustCompile(regexp.QuoteMeta(proto) + `[^\s"'<>]+`)
-		for _, m := range re.FindAllString(text, -1) {
-			links = append(links, strings.TrimSpace(m))
+		for _, idx := range re.FindAllStringIndex(text, -1) {
+			start, end := idx[0], idx[1]
+			// "ss://" is a substring of "vless://" (and similar overlaps are
+			// possible), so a naive per-protocol scan can match a protocol
+			// prefix embedded inside a different link. Reject matches whose
+			// preceding character is alphanumeric — a real link never starts
+			// mid-word.
+			if start > 0 {
+				prev := text[start-1]
+				isAlnum := (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z') || (prev >= '0' && prev <= '9')
+				if isAlnum {
+					continue
+				}
+			}
+			links = append(links, strings.TrimSpace(text[start:end]))
 		}
 	}
 	if len(links) == 0 {
@@ -541,7 +554,11 @@ func buildConfigFromLink(link string, port int) (map[string]interface{}, error) 
 		}
 	} else if strings.HasPrefix(link, "vmess://") {
 		raw := strings.TrimPrefix(link, "vmess://")
-		data, err := base64.StdEncoding.DecodeString(raw + "==")
+		// Blindly appending "==" (the old approach) corrupts input that's
+		// already correctly padded. Strip any padding the source link might
+		// already have and decode with RawStdEncoding, which doesn't need any.
+		raw = strings.TrimRight(raw, "=")
+		data, err := base64.RawStdEncoding.DecodeString(raw)
 		if err != nil {
 			return nil, fmt.Errorf("vmess base64 decode failed: %w", err)
 		}

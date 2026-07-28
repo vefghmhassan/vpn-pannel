@@ -1,0 +1,137 @@
+<div class="bg-base-100 rounded-box shadow p-4 mb-4 flex items-center justify-between flex-wrap gap-2">
+  <div>
+    <h1 class="text-2xl font-bold">آمار کاربران آنلاین</h1>
+    <p class="text-xs opacity-60 mt-1">شمارنده‌های زنده هر ۱۰ ثانیه به‌روزرسانی می‌شوند</p>
+  </div>
+</div>
+
+<div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-4">
+  <div class="stat">
+    <div class="stat-figure text-success">
+      <span class="relative flex h-3 w-3">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-3 w-3 bg-success"></span>
+      </span>
+    </div>
+    <div class="stat-title">آنلاین (۵ دقیقه اخیر)</div>
+    <div class="stat-value text-success" id="statM5">...</div>
+  </div>
+  <div class="stat">
+    <div class="stat-title">آنلاین (۳۰ دقیقه اخیر)</div>
+    <div class="stat-value text-info" id="statM30">...</div>
+  </div>
+  <div class="stat">
+    <div class="stat-title">آنلاین (۲۴ ساعت اخیر)</div>
+    <div class="stat-value" id="statH24">...</div>
+  </div>
+</div>
+
+{{ template "partials/daterange" .range }}
+
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title">روند کاربران آنلاین در بازه انتخابی</h2>
+    <div style="height: 320px;">
+      <canvas id="onlineHistoryChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var elM5 = document.getElementById('statM5');
+    var elM30 = document.getElementById('statM30');
+    var elH24 = document.getElementById('statH24');
+
+    function refreshCounters() {
+      fetch('/admin/metrics/online-stats')
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (data) {
+          if (elM5 && typeof data.m5 === 'number') elM5.textContent = data.m5;
+          if (elM30 && typeof data.m30 === 'number') elM30.textContent = data.m30;
+          if (elH24 && typeof data.h24 === 'number') elH24.textContent = data.h24;
+        })
+        .catch(function () {
+          [elM5, elM30, elH24].forEach(function (el) { if (el) el.textContent = '—'; });
+        });
+    }
+
+    var ctx = document.getElementById('onlineHistoryChart').getContext('2d');
+    var gradient = ctx.createLinearGradient(0, 0, 0, 320);
+    gradient.addColorStop(0, 'rgba(34, 197, 94, 0.30)');
+    gradient.addColorStop(1, 'rgba(34, 197, 94, 0.02)');
+
+    var gridColor = 'rgba(255, 255, 255, 0.08)';
+    var tickColor = 'rgba(255, 255, 255, 0.55)';
+
+    var chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'کاربران آنلاین',
+          data: [],
+          borderColor: '#22c55e',
+          backgroundColor: gradient,
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#22c55e',
+          pointHoverBorderColor: '#ffffff',
+          pointHoverBorderWidth: 1.5
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0, color: tickColor },
+            grid: { color: gridColor }
+          },
+          x: {
+            ticks: { autoSkip: true, maxTicksLimit: 10, maxRotation: 0, color: tickColor },
+            grid: { display: false }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(17, 24, 39, 0.95)',
+            titleColor: '#e5e7eb',
+            bodyColor: '#e5e7eb',
+            borderColor: 'rgba(34, 197, 94, 0.4)',
+            borderWidth: 1,
+            padding: 10,
+            cornerRadius: 8,
+            displayColors: false
+          }
+        }
+      }
+    });
+
+    function refreshChart() {
+      fetch('/admin/metrics/online-history' + location.search)
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (data) {
+          var points = (data && data.points) || [];
+          chart.data.labels = points.map(function (p) {
+            return new Date(p.t).toLocaleString('fa-IR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+          });
+          chart.data.datasets[0].data = points.map(function (p) { return p.count; });
+          chart.update();
+        })
+        .catch(function () {});
+    }
+
+    refreshCounters();
+    refreshChart();
+    setInterval(refreshCounters, 10000);
+    setInterval(refreshChart, 10000);
+  })();
+</script>

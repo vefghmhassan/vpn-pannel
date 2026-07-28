@@ -20,8 +20,10 @@ type AppSettings struct {
 	// Whether app-open ads are enabled
 	AdsAppOpenEnabled bool `gorm:"not null;default:false" json:"adsAppOpenEnabled"`
 	// Percent (0-100) of times to show reward ads
-	RewardDisplayPercent int  `gorm:"not null;default:100" json:"rewardDisplayPercent"`
-	UpdateEnable         bool `gorm:"not null;default:true" json:"updateEnable"`
+	RewardDisplayPercent int `gorm:"not null;default:100" json:"rewardDisplayPercent"`
+	// No GORM default: zero value (false) must persist when an admin disables
+	// updates — a `default:true` tag would make GORM skip false on save.
+	UpdateEnable bool `json:"updateEnable"`
 	// Current application version string (e.g., 1.0.0)
 	CurrentVersion string `gorm:"size:32;not null;default:'1.0.0'" json:"currentVersion"`
 
@@ -38,11 +40,23 @@ type AppSettings struct {
 	// Timeout (seconds) for considering a connection as established
 	ConnectedTimeoutSeconds int `gorm:"not null;default:15" json:"connectedTimeout"`
 	// Number of configs to return per splash/conf request (per ads/no-ads)
-	SplashConfCount int    `gorm:"not null;default:4" json:"splashConfCount"`
-	AppTimer        int    `gorm:"not null;default:30" json:"appTimer"`
-	Domain            string `gorm:"size:128" json:"domain"`
-	LinkApp           string `gorm:"size:255" json:"linkApp"`
-	ReleaseNotes      string `gorm:"size:1024" json:"releaseNotes"`
-	ConnectionTimer   int64  `gorm:"not null;default:1000" json:"connectionTimer"`
-	CurrentVersionCode int   `gorm:"not null;default:4000011" json:"currentVersionCode"`
+	SplashConfCount    int    `gorm:"not null;default:4" json:"splashConfCount"`
+	AppTimer           int    `gorm:"not null;default:30" json:"appTimer"`
+	Domain             string `gorm:"size:128" json:"domain"`
+	LinkApp            string `gorm:"size:255" json:"linkApp"`
+	ReleaseNotes       string `gorm:"size:1024" json:"releaseNotes"`
+	ConnectionTimer    int64  `gorm:"not null;default:1000" json:"connectionTimer"`
+	CurrentVersionCode int    `gorm:"not null;default:4000011" json:"currentVersionCode"`
+	// Whether the lucky wheel (گردونه شانس) is enabled in the app.
+	// No GORM default: zero value (false) must persist when an admin disables
+	// the wheel — a `default:true` tag would make GORM skip false on save.
+	WheelEnabled bool `json:"wheelEnabled"`
+
+	// Referral reward task: invite N friends to unlock M days without ads.
+	ReferralRequiredInvites int    `gorm:"not null;default:5" json:"referralRequiredInvites"`
+	ReferralRewardDays      int    `gorm:"not null;default:7" json:"referralRewardDays"`
+	ReferralTaskText        string `gorm:"size:512" json:"referralTaskText"`
+	// ReferralShareText may contain a "{code}" placeholder, substituted with the
+	// user's actual invite code before being returned to the client.
+	ReferralShareText string `gorm:"size:512" json:"referralShareText"`
 }

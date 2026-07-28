@@ -15,7 +15,10 @@ type V2RayNode struct {
 	Ads         bool   `gorm:"default:false"`
 	CountryCode string `gorm:"size:8"`
 	CountryFlag string `gorm:"size:255"`
-	IsActive    bool   `gorm:"default:true"`
-	Capacity    int    `gorm:"default:0"` // optional capacity indicator
-	RawLink     string `gorm:"type:text"` // optional original config link
+	// No GORM default: IsActive's zero value (false) must persist (deactivating
+	// a node) — a `default:true` tag would make GORM skip false on save and let
+	// the DB substitute true instead. See internal/models/user.go for the same fix.
+	IsActive bool
+	Capacity int    `gorm:"default:0"` // optional capacity indicator
+	RawLink  string `gorm:"type:text"` // optional original config link
 }

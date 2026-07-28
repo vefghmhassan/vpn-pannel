@@ -47,6 +47,12 @@
       </label>
     <label class="form-control cursor-pointer">
       <div class="label">
+        <span class="label-text">فعال بودن گردونه شانس</span>
+      </div>
+      <input type="checkbox" name="wheel_enabled" class="toggle toggle-primary js-setting-toggle" {{ if .s.WheelEnabled }}checked{{ end }} />
+    </label>
+    <label class="form-control cursor-pointer">
+      <div class="label">
         <span class="label-text">نمایش تبلیغات در صفحه اصلی</span>
       </div>
       <input type="checkbox" name="show_ads_on_main_page" class="toggle toggle-primary js-setting-toggle" {{ if .s.ShowAdsOnMainPage }}checked{{ end }} />

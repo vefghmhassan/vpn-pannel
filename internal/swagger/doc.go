@@ -98,13 +98,45 @@ const docTemplate = `{
     },
     "/api/v1/last-connection": {
       "post": {
-        "summary": "Update last connected node (requires Bearer token)",
+        "summary": "Check in as online using a client-generated token",
         "parameters": [
-          {"in": "header", "name": "Authorization", "type": "string", "required": true},
           {"in": "body", "name": "body", "required": true, "schema": {"$ref": "#/definitions/LastConnectionRequest"}}
         ],
         "responses": {
           "200": {"description": "OK"}
+        }
+      }
+    },
+    "/api/v1/invite/code": {
+      "post": {
+        "summary": "Get (or generate) the caller's own invite code",
+        "parameters": [
+          {"in": "body", "name": "body", "required": true, "schema": {"$ref": "#/definitions/InviteCodeRequest"}}
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/InviteCodeResponse"}}
+        }
+      }
+    },
+    "/api/v1/invite/redeem": {
+      "post": {
+        "summary": "Redeem a friend's invite code",
+        "parameters": [
+          {"in": "body", "name": "body", "required": true, "schema": {"$ref": "#/definitions/InviteRedeemRequest"}}
+        ],
+        "responses": {
+          "200": {"description": "OK"}
+        }
+      }
+    },
+    "/api/v1/invite/reward-status": {
+      "post": {
+        "summary": "Check referral reward eligibility/expiry for the caller",
+        "parameters": [
+          {"in": "body", "name": "body", "required": true, "schema": {"$ref": "#/definitions/InviteCodeRequest"}}
+        ],
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/InviteRewardStatusResponse"}}
         }
       }
     },
@@ -113,6 +145,14 @@ const docTemplate = `{
         "summary": "Get public app settings",
         "responses": {
           "200": {"description": "OK", "schema": {"$ref": "#/definitions/SettingsResponse"}}
+        }
+      }
+    },
+    "/api/v1/wheel": {
+      "get": {
+        "summary": "Get active lucky-wheel segments",
+        "responses": {
+          "200": {"description": "OK", "schema": {"$ref": "#/definitions/WheelResponse"}}
         }
       }
     },
@@ -185,7 +225,41 @@ const docTemplate = `{
     "LastConnectionRequest": {
       "type": "object",
       "properties": {
-        "node_id": {"type": "integer"}
+        "token": {"type": "string"}
+      }
+    },
+    "InviteCodeRequest": {
+      "type": "object",
+      "properties": {
+        "token": {"type": "string"}
+      }
+    },
+    "InviteCodeResponse": {
+      "type": "object",
+      "properties": {
+        "invite_code": {"type": "string"},
+        "invites_count": {"type": "integer"},
+        "invites_required": {"type": "integer"},
+        "task_text": {"type": "string"},
+        "share_text": {"type": "string"}
+      }
+    },
+    "InviteRedeemRequest": {
+      "type": "object",
+      "properties": {
+        "token": {"type": "string"},
+        "invite_code": {"type": "string"}
+      }
+    },
+    "InviteRewardStatusResponse": {
+      "type": "object",
+      "properties": {
+        "eligible": {"type": "boolean"},
+        "invites_count": {"type": "integer"},
+        "invites_required": {"type": "integer"},
+        "reward_active": {"type": "boolean"},
+        "reward_expires_at": {"type": "string"},
+        "days_left": {"type": "integer"}
       }
     },
     "SettingsResponse": {
@@ -245,6 +319,29 @@ const docTemplate = `{
         "is_active": {"type": "boolean"},
         "capacity": {"type": "integer"},
         "raw_link": {"type": "string"}
+      }
+    },
+    "WheelSegment": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "integer"},
+        "position": {"type": "integer"},
+        "display_type": {"type": "string", "enum": ["text", "icon"]},
+        "label": {"type": "string"},
+        "icon": {"type": "string"},
+        "reward_type": {"type": "string", "enum": ["time", "premium", "none"]},
+        "reward_value": {"type": "integer"},
+        "color": {"type": "string"},
+        "color_is_random": {"type": "boolean"},
+        "weight": {"type": "integer"},
+        "percent": {"type": "number"}
+      }
+    },
+    "WheelResponse": {
+      "type": "object",
+      "properties": {
+        "segments": {"type": "array", "items": {"$ref": "#/definitions/WheelSegment"}},
+        "total_weight": {"type": "integer"}
       }
     }
   }

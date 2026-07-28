@@ -1,0 +1,68 @@
+<div class="bg-base-100 rounded-box shadow p-4 mb-4 flex items-center justify-between flex-wrap gap-2">
+  <div>
+    <h1 class="text-2xl font-bold">دعوت‌ها</h1>
+    <p class="text-xs opacity-60 mt-1">کاربرانی که کد دعوت دارند و تعداد دعوت‌شده‌هاشون</p>
+  </div>
+</div>
+
+<div class="card bg-base-100 shadow mb-4">
+  <div class="card-body">
+    <h2 class="card-title">تنظیمات تسک دعوت</h2>
+    <p class="text-xs opacity-60 mb-2">این تنظیمات مشخص می‌کنند برای گرفتن جایزه (بدون تبلیغ) کاربر باید چند نفر دعوت کند و جایزه چند روز فعال بماند.</p>
+    <form method="post" action="/admin/invites/task-settings" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <label class="form-control">
+        <div class="label"><span class="label-text">حد نصاب تعداد دعوت</span></div>
+        <input type="number" min="1" class="input input-bordered" name="referral_required_invites" value="{{ .settings.ReferralRequiredInvites }}" />
+      </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">تعداد روز بدون تبلیغ (جایزه)</span></div>
+        <input type="number" min="1" class="input input-bordered" name="referral_reward_days" value="{{ .settings.ReferralRewardDays }}" />
+      </label>
+      <label class="form-control md:col-span-2">
+        <div class="label"><span class="label-text">متن تسک (برای نمایش به کاربر)</span></div>
+        <textarea class="textarea textarea-bordered" name="referral_task_text" rows="2">{{ .settings.ReferralTaskText }}</textarea>
+      </label>
+      <label class="form-control md:col-span-2">
+        <div class="label">
+          <span class="label-text">متن اشتراک‌گذاری (برای ارسال به دوستان)</span>
+          <span class="label-text-alt opacity-60">از <code>{code}</code> برای جای‌گذاری خودکار کد دعوت استفاده کنید</span>
+        </div>
+        <textarea class="textarea textarea-bordered" name="referral_share_text" rows="2">{{ .settings.ReferralShareText }}</textarea>
+      </label>
+      <div class="md:col-span-2">
+        <button type="submit" class="btn btn-primary btn-sm">ذخیره تنظیمات</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card bg-base-100 shadow">
+  <div class="card-body p-3">
+    <div class="overflow-x-auto">
+      <table class="table table-sm table-zebra">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>کاربر</th>
+            <th>ایمیل</th>
+            <th>کد دعوت</th>
+            <th>دعوت‌شده‌ها</th>
+            <th>آخرین بازدید</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .rows }}
+          <tr>
+            <td class="opacity-60">{{ .User.ID }}</td>
+            <td><a class="link link-hover font-medium" href="/admin/invites/{{ .User.ID }}">{{ .User.Username }}</a></td>
+            <td class="opacity-60 text-xs">{{ .User.Email }}</td>
+            <td><code class="px-2 py-1 rounded bg-base-200 tracking-widest font-semibold">{{ .User.InviteCode }}</code></td>
+            <td><div class="badge badge-success badge-outline">{{ .ReferralCount }}</div></td>
+            <td class="text-xs opacity-80">{{ fmtDate .User.LastSeenAt $.calendar }}</td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

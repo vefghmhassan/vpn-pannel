@@ -22,7 +22,7 @@
               <td>{{ .ID }}</td>
               <td>{{ .DeviceID }}</td>
               <td><code class="text-xs break-all">{{ .FCMToken }}</code></td>
-              <td>{{ .LastSeenAt }}</td>
+              <td>{{ fmtDate .LastSeenAt $.calendar }}</td>
             </tr>
             {{ end }}
           </tbody>

@@ -1,0 +1,60 @@
+<div class="bg-base-100 rounded-box shadow p-4 mb-4 flex items-center justify-between flex-wrap gap-2">
+  <div>
+    <h1 class="text-2xl font-bold">آمار تسک دعوت</h1>
+    <p class="text-xs opacity-60 mt-1">
+      حد نصاب فعلی: دعوت {{ .settings.ReferralRequiredInvites }} نفر برای {{ .settings.ReferralRewardDays }} روز بدون تبلیغ
+    </p>
+  </div>
+</div>
+
+<div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-4">
+  <div class="stat">
+    <div class="stat-title">کل کاربران دارای کد دعوت</div>
+    <div class="stat-value">{{ .totalReferrers }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-title">رسیده به حد نصاب</div>
+    <div class="stat-value text-success">{{ .reachedCount }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-title">جایزه فعال الان</div>
+    <div class="stat-value text-info">{{ .activeCount }}</div>
+  </div>
+</div>
+
+<div class="card bg-base-100 shadow">
+  <div class="card-body p-3">
+    <div class="overflow-x-auto">
+      <table class="table table-sm table-zebra">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>کاربر</th>
+            <th>ایمیل</th>
+            <th>تعداد دعوت</th>
+            <th>وضعیت تسک</th>
+            <th>وضعیت جایزه</th>
+            <th>پایان جایزه</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .rows }}
+          <tr>
+            <td class="opacity-60">{{ .User.ID }}</td>
+            <td><a class="link link-hover font-medium" href="/admin/invites/{{ .User.ID }}">{{ .User.Username }}</a></td>
+            <td class="opacity-60 text-xs">{{ .User.Email }}</td>
+            <td>{{ .InvitesCount }}</td>
+            <td>
+              {{ if .Reached }}<div class="badge badge-success badge-outline">رسیده</div>{{ else }}<div class="badge badge-ghost">نرسیده</div>{{ end }}
+            </td>
+            <td>
+              {{ if .RewardActive }}<div class="badge badge-info badge-outline">فعال</div>{{ else if .RewardExpires }}<div class="badge badge-ghost">منقضی‌شده</div>{{ else }}<div class="badge badge-ghost">شروع‌نشده</div>{{ end }}
+            </td>
+            <td class="text-xs opacity-80">{{ fmtDate .RewardExpires $.calendar }}</td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

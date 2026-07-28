@@ -19,10 +19,15 @@
         <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
           <li><a href="/admin">داشبورد</a></li>
           <li><a href="/admin/users">کاربران</a></li>
+          <li><a href="/admin/stats">آمار</a></li>
+          <li><a href="/admin/tracker">ترکر</a></li>
+          <li><a href="/admin/invites">دعوت‌ها</a></li>
+          <li><a href="/admin/invite-task-stats">آمار تسک دعوت</a></li>
           <li><a href="/admin/v2ray">V2Ray</a></li>
           <li><a href="/admin/splash">Splash</a></li>
           <li><a href="/admin/push">Push</a></li>
           <li><a href="/admin/app">اپلیکیشن</a></li>
+          <li><a href="/admin/wheel">گردونه شانس</a></li>
           <li><a href="/admin/settings">تنظیمات</a></li>
           <li><a href="/logout">خروج</a></li>
         </ul>
@@ -33,18 +38,56 @@
       <ul class="menu menu-horizontal px-1">
         <li><a href="/admin">داشبورد</a></li>
         <li><a href="/admin/users">کاربران</a></li>
+        <li><a href="/admin/stats">آمار</a></li>
+        <li><a href="/admin/tracker">ترکر</a></li>
+        <li><a href="/admin/invites">دعوت‌ها</a></li>
+        <li><a href="/admin/invite-task-stats">آمار تسک دعوت</a></li>
         <li><a href="/admin/v2ray">V2Ray</a></li>
         <li><a href="/admin/splash">Splash</a></li>
         <li><a href="/admin/push">Push</a></li>
         <li><a href="/admin/app">اپلیکیشن</a></li>
+        <li><a href="/admin/wheel">گردونه شانس</a></li>
         <li><a href="/admin/settings">تنظیمات</a></li>
         <li><a href="/logout">خروج</a></li>
       </ul>
+    </div>
+    <div class="navbar-end">
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span id="calendarLabel" class="text-xs">تقویم</span>
+        </div>
+        <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-36">
+          <li><a data-calendar="gregorian" href="#">میلادی</a></li>
+          <li><a data-calendar="jalali" href="#">شمسی</a></li>
+          <li><a data-calendar="hijri" href="#">قمری</a></li>
+        </ul>
+      </div>
     </div>
   </div>
   <div class="container mx-auto p-4">
     {{ embed }}
   </div>
+  <script>
+    (function () {
+      var labels = { gregorian: 'میلادی', jalali: 'شمسی', hijri: 'قمری' };
+      var match = document.cookie.match(/(?:^|; )calendar_system=([^;]+)/);
+      var current = match ? decodeURIComponent(match[1]) : 'gregorian';
+      var labelEl = document.getElementById('calendarLabel');
+      if (labelEl && labels[current]) labelEl.textContent = labels[current];
+
+      document.querySelectorAll('a[data-calendar]').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          var system = a.getAttribute('data-calendar');
+          var next = encodeURIComponent(location.pathname + location.search);
+          location.href = '/admin/set-calendar?system=' + system + '&next=' + next;
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
 

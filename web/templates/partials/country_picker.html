@@ -1,0 +1,68 @@
+<label class="form-control mt-3">
+  <div class="label"><span class="label-text">کشور</span></div>
+  <div class="dropdown w-full" id="country-picker">
+    <input type="hidden" name="country" id="country-value" value="{{ .Selected }}" />
+    <div tabindex="0" role="button" class="btn btn-outline w-full justify-between font-normal" id="country-trigger">
+      <span class="flex items-center gap-2" id="country-trigger-label">
+        {{ if .Selected }}
+          <img src="/country/{{ .Selected }}.png" class="w-5 h-4 object-cover rounded-sm" onerror="this.style.display='none'" />
+          <span>{{ .Selected }}</span>
+        {{ else }}
+          <span class="opacity-60">انتخاب کشور</span>
+        {{ end }}
+      </span>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+      </svg>
+    </div>
+    <div tabindex="0" class="dropdown-content z-[20] bg-base-100 rounded-box shadow-lg w-full mt-1 p-2 border border-base-300">
+      <input type="text" id="country-search" class="input input-sm input-bordered w-full mb-2" placeholder="جستجوی کد کشور..." autocomplete="off" />
+      <ul id="country-options" class="menu menu-sm p-0 flex-nowrap overflow-y-auto" style="max-height: 16rem;">
+        <li id="country-empty" class="hidden"><span class="opacity-60 text-sm px-2 py-1">موردی یافت نشد</span></li>
+        {{ range .Countries }}
+        <li data-code="{{ . }}">
+          <a class="country-option flex items-center gap-2" data-code="{{ . }}">
+            <img src="/country/{{ . }}.png" class="w-5 h-4 object-cover rounded-sm" onerror="this.style.display='none'" />
+            <span>{{ . }}</span>
+          </a>
+        </li>
+        {{ end }}
+      </ul>
+    </div>
+  </div>
+</label>
+<script>
+(function () {
+  const root = document.getElementById('country-picker');
+  if (!root) return;
+  const search = root.querySelector('#country-search');
+  const list = root.querySelector('#country-options');
+  const empty = root.querySelector('#country-empty');
+  const hidden = root.querySelector('#country-value');
+  const label = root.querySelector('#country-trigger-label');
+  const items = Array.from(list.querySelectorAll('li[data-code]'));
+
+  search.addEventListener('input', function () {
+    const q = search.value.trim().toUpperCase();
+    let visible = 0;
+    items.forEach(function (li) {
+      const match = li.dataset.code.indexOf(q) !== -1;
+      li.classList.toggle('hidden', !match);
+      if (match) visible++;
+    });
+    empty.classList.toggle('hidden', visible !== 0);
+  });
+
+  list.querySelectorAll('.country-option').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      const code = a.dataset.code;
+      hidden.value = code;
+      label.innerHTML =
+        '<img src="/country/' + code + '.png" class="w-5 h-4 object-cover rounded-sm" onerror="this.style.display=\'none\'" />' +
+        '<span>' + code + '</span>';
+      document.activeElement && document.activeElement.blur();
+    });
+  });
+})();
+</script>

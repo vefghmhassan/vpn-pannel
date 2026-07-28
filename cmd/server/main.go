@@ -6,9 +6,12 @@ import (
 	"github.com/gofiber/template/html/v2"
 	"log"
 	"os"
+	"time"
+	"vpnpannel/internal/calendar"
 	"vpnpannel/internal/config"
 	"vpnpannel/internal/database"
 	"vpnpannel/internal/server"
+	"vpnpannel/internal/services"
 )
 
 func main() {
@@ -29,14 +32,17 @@ func main() {
 
 	// Template engine
 	engine := html.New("web/templates", ".html")
+	engine.AddFunc("fmtDate", func(t *time.Time, system string) string {
+		return calendar.FormatDateTime(t, calendar.System(system))
+	})
 
-    app := fiber.New(fiber.Config{
-        Views:        engine,
-        ViewsLayout:  "layout",
-        ServerHeader: "VpnPannel",
-        AppName:      "VpnPannel Admin",
-        BodyLimit:    200 * 1024 * 1024, // allow up to 200MB uploads
-    })
+	app := fiber.New(fiber.Config{
+		Views:        engine,
+		ViewsLayout:  "layout",
+		ServerHeader: "VpnPannel",
+		AppName:      "VpnPannel Admin",
+		BodyLimit:    200 * 1024 * 1024, // allow up to 200MB uploads
+	})
 
 	// Static assets (optional, for logos etc.)
 	app.Static("/static", "public")
@@ -44,8 +50,10 @@ func main() {
 	// Setup routes
 	server.RegisterRoutes(app)
 
-	// start background jobs (disabled)
-	_ = context.Background()
+	// start background jobs
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	services.StartOnlineSnapshotter(ctx, 5*time.Minute)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {

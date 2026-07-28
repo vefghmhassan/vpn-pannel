@@ -44,6 +44,9 @@ func AutoMigrateAndSeed() error {
 		&models.AppSettings{},
 		&models.AppVersion{},
 		&models.AppBuild{},
+		&models.WheelSegment{},
+		&models.AppOpenEvent{},
+		&models.OnlineSnapshot{},
 	); err != nil {
 		return err
 	}
@@ -101,6 +104,7 @@ func seedSettings() error {
 		ReleaseNotes:            "",
 		ConnectionTimer:         1000,
 		CurrentVersionCode:      4000011,
+		WheelEnabled:            true,
 	}
 	return DB.Create(&defaults).Error
 }

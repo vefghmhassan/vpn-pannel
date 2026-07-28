@@ -25,8 +25,21 @@ func RegisterRoutes(app *fiber.App) {
 
 	// Admin area
 	admin := app.Group("/admin", middleware.AuthRequired("SUPER_ADMIN", "ADMIN", "SUPPORT"))
+	// Calendar system switcher (per-browser cookie)
+	admin.Get("/set-calendar", handlers.SetCalendar)
 	// Admin metrics
 	admin.Get("/metrics/active-users", handlers.ActiveUsersCount)
+	admin.Get("/metrics/online-stats", handlers.OnlineUsersStats)
+	admin.Get("/metrics/online-history", handlers.OnlineHistory)
+	// Online users stats page (5m / 30m / 24h, like Firebase Analytics)
+	admin.Get("/stats", handlers.StatsPage)
+	// App-open tracker (per-user opens today / this month)
+	admin.Get("/tracker", handlers.TrackerPage)
+	// Referral / invite-code program
+	admin.Get("/invites", handlers.InvitesPage)
+	admin.Post("/invites/task-settings", handlers.ReferralTaskSettingsUpdate)
+	admin.Get("/invites/:id", handlers.InviteDetailPage)
+	admin.Get("/invite-task-stats", handlers.InviteTaskStatsPage)
 	// App versions
 	admin.Get("/app", handlers.AppList)
 	admin.Get("/app/new", handlers.AppNewPage)
@@ -38,6 +51,9 @@ func RegisterRoutes(app *fiber.App) {
 	admin.Post("/settings/delete", handlers.SettingsDelete)
 	admin.Get("/settings/export", handlers.SettingsExport)
 	admin.Post("/settings/import", handlers.SettingsImport)
+	// Lucky wheel (گردونه شانس)
+	admin.Get("/wheel", handlers.WheelPage)
+	admin.Post("/wheel", handlers.WheelUpdate)
 	// Users
 	admin.Get("/users", handlers.UsersList)
 	admin.Get("/users/active", handlers.UsersActive)
@@ -81,8 +97,12 @@ func RegisterRoutes(app *fiber.App) {
 	//api.Post("/splash", handlers.ApiSPlash)
 	api.Post("/splash", handlers.ApiSplashRefresh)
 	api.Post("/splash/conf", handlers.ApiSplashConf)
-	api.Post("/last-connection", handlers.ApiAuth, handlers.ApiLastConnection)
+	api.Post("/last-connection", handlers.ApiLastConnection)
+	api.Post("/invite/code", handlers.ApiInviteCode)
+	api.Post("/invite/redeem", handlers.ApiInviteRedeem)
+	api.Post("/invite/reward-status", handlers.ApiInviteRewardStatus)
 	api.Get("/settings", handlers.ApiSettings)
+	api.Get("/wheel", handlers.ApiWheel)
 	api.Post("/app/check-update", handlers.ApiCheckUpdate)
 
 	// Health

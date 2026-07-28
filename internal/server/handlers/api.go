@@ -4,7 +4,9 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -136,22 +138,243 @@ func usernameFromDeviceID(deviceID string) string {
 	return fmt.Sprintf("guest_%s_%s", deviceID, hex.EncodeToString(sum[:])[:6]) // guest_abc..._a1b2c3
 }
 
-// ApiLastConnection updates which node the user last used
-func ApiLastConnection(c *fiber.Ctx) error {
-	user := c.Locals("user").(*models.User)
+// findOrCreateUserByToken resolves the user identified by a client-generated token
+// (e.g. a stable install id), creating a lightweight account on first sight. Shared by
+// every token-only endpoint (check-in, invite code, invite redeem).
+func findOrCreateUserByToken(token string) (*models.User, error) {
+	var user models.User
+	err := database.DB.Where("client_token = ?", token).First(&user).Error
+	if err == nil {
+		return &user, nil
+	}
+	if err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+	sum := sha1.Sum([]byte(token))
+	hashed := hex.EncodeToString(sum[:])
+	user = models.User{
+		Email:       hashed + "@client.vpnpannel.local",
+		Username:    "client_" + hashed[:12],
+		Role:        models.RoleUser,
+		IsActive:    true,
+		ClientToken: &token,
+	}
+	if err := database.DB.Create(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// parseClientToken extracts and validates the "token" field shared by every
+// token-only mobile endpoint.
+func parseClientToken(c *fiber.Ctx) (string, error) {
 	var in struct {
-		NodeID uint `json:"node_id"`
+		Token string `json:"token"`
 	}
 	if err := c.BodyParser(&in); err != nil {
-		return fiber.ErrBadRequest
+		return "", fiber.ErrBadRequest
 	}
-	user.LastConnectedNode = &in.NodeID
+	token := strings.TrimSpace(in.Token)
+	if token == "" {
+		return "", fiber.NewError(fiber.StatusBadRequest, "token required")
+	}
+	if len(token) > 36 {
+		return "", fiber.NewError(fiber.StatusBadRequest, "token too long")
+	}
+	return token, nil
+}
+
+// ApiLastConnection checks a client in as online using a client-generated token
+// (e.g. a stable install id), finding or creating the underlying user by that token.
+func ApiLastConnection(c *fiber.Ctx) error {
+	token, err := parseClientToken(c)
+	if err != nil {
+		return err
+	}
+
+	user, err := findOrCreateUserByToken(token)
+	if err != nil {
+		return fiber.ErrInternalServerError
+	}
+	if !user.IsActive {
+		return fiber.ErrUnauthorized
+	}
+
 	now := time.Now()
 	user.LastSeenAt = &now
 	if err := database.DB.Save(user).Error; err != nil {
 		return fiber.ErrInternalServerError
 	}
+	database.DB.Create(&models.AppOpenEvent{UserID: user.ID})
 	return c.JSON(fiber.Map{"ok": true})
+}
+
+// inviteCodeChars excludes ambiguous characters (0/O, 1/I) to keep shared codes readable.
+const inviteCodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+const inviteCodeLength = 6
+
+func generateUniqueInviteCode() (string, error) {
+	for i := 0; i < 10; i++ {
+		b := make([]byte, inviteCodeLength)
+		for j := range b {
+			b[j] = inviteCodeChars[rand.Intn(len(inviteCodeChars))]
+		}
+		code := string(b)
+		var count int64
+		database.DB.Model(&models.User{}).Where("invite_code = ?", code).Count(&count)
+		if count == 0 {
+			return code, nil
+		}
+	}
+	return "", errors.New("could not generate unique invite code")
+}
+
+// referralCount returns how many users this user has referred (lifetime total).
+func referralCount(userID uint) int64 {
+	var count int64
+	database.DB.Model(&models.User{}).Where("referred_by_user_id = ?", userID).Count(&count)
+	return count
+}
+
+// currentSettings loads the singleton AppSettings row (row 1), returning a zero
+// value (safe defaults) if it hasn't been seeded yet.
+func currentSettings() models.AppSettings {
+	var s models.AppSettings
+	database.DB.First(&s, 1)
+	return s
+}
+
+// ApiInviteCode returns the caller's own shareable invite code, generating one on
+// first request (idempotent — repeat calls return the same code) — along with the
+// admin-configured task text and a ready-to-share message with the code filled in.
+func ApiInviteCode(c *fiber.Ctx) error {
+	token, err := parseClientToken(c)
+	if err != nil {
+		return err
+	}
+
+	user, err := findOrCreateUserByToken(token)
+	if err != nil {
+		return fiber.ErrInternalServerError
+	}
+	if !user.IsActive {
+		return fiber.ErrUnauthorized
+	}
+
+	if user.InviteCode == nil {
+		code, err := generateUniqueInviteCode()
+		if err != nil {
+			return fiber.ErrInternalServerError
+		}
+		user.InviteCode = &code
+		if err := database.DB.Save(user).Error; err != nil {
+			return fiber.ErrInternalServerError
+		}
+	}
+
+	settings := currentSettings()
+	shareText := strings.ReplaceAll(settings.ReferralShareText, "{code}", *user.InviteCode)
+
+	return c.JSON(fiber.Map{
+		"invite_code":      *user.InviteCode,
+		"invites_count":    referralCount(user.ID),
+		"invites_required": settings.ReferralRequiredInvites,
+		"task_text":        settings.ReferralTaskText,
+		"share_text":       shareText,
+	})
+}
+
+// ApiInviteRedeem links the caller to whoever owns the given invite code. Each user
+// may redeem exactly one code, ever, and cannot redeem their own.
+func ApiInviteRedeem(c *fiber.Ctx) error {
+	token, err := parseClientToken(c)
+	if err != nil {
+		return err
+	}
+	var in struct {
+		InviteCode string `json:"invite_code"`
+	}
+	if err := c.BodyParser(&in); err != nil {
+		return fiber.ErrBadRequest
+	}
+	code := strings.ToUpper(strings.TrimSpace(in.InviteCode))
+	if code == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "invite_code required")
+	}
+
+	user, err := findOrCreateUserByToken(token)
+	if err != nil {
+		return fiber.ErrInternalServerError
+	}
+	if !user.IsActive {
+		return fiber.ErrUnauthorized
+	}
+	if user.ReferredByUserID != nil {
+		return fiber.NewError(fiber.StatusConflict, "already redeemed an invite code")
+	}
+
+	var referrer models.User
+	if err := database.DB.Where("invite_code = ?", code).First(&referrer).Error; err != nil {
+		return fiber.NewError(fiber.StatusNotFound, "invalid invite code")
+	}
+	if referrer.ID == user.ID {
+		return fiber.NewError(fiber.StatusBadRequest, "cannot redeem your own invite code")
+	}
+
+	user.ReferredByUserID = &referrer.ID
+	if err := database.DB.Save(user).Error; err != nil {
+		return fiber.ErrInternalServerError
+	}
+	return c.JSON(fiber.Map{"ok": true})
+}
+
+// ApiInviteRewardStatus reports whether the caller has reached the admin-configured
+// referral threshold and, if so, whether their reward window is still active. The
+// reward timer starts the first time this endpoint sees them past the threshold.
+func ApiInviteRewardStatus(c *fiber.Ctx) error {
+	token, err := parseClientToken(c)
+	if err != nil {
+		return err
+	}
+
+	user, err := findOrCreateUserByToken(token)
+	if err != nil {
+		return fiber.ErrInternalServerError
+	}
+	if !user.IsActive {
+		return fiber.ErrUnauthorized
+	}
+
+	settings := currentSettings()
+	count := referralCount(user.ID)
+	eligible := count >= int64(settings.ReferralRequiredInvites)
+
+	if eligible && user.RewardActivatedAt == nil {
+		now := time.Now()
+		user.RewardActivatedAt = &now
+		if err := database.DB.Save(user).Error; err != nil {
+			return fiber.ErrInternalServerError
+		}
+	}
+
+	resp := fiber.Map{
+		"eligible":         eligible,
+		"invites_count":    count,
+		"invites_required": settings.ReferralRequiredInvites,
+		"reward_active":    false,
+	}
+	if user.RewardActivatedAt != nil {
+		expiresAt := user.RewardActivatedAt.AddDate(0, 0, settings.ReferralRewardDays)
+		active := time.Now().Before(expiresAt)
+		resp["reward_active"] = active
+		resp["reward_expires_at"] = expiresAt
+		daysLeft := 0
+		if active {
+			daysLeft = int(time.Until(expiresAt).Hours()/24) + 1
+		}
+		resp["days_left"] = daysLeft
+	}
+	return c.JSON(resp)
 }
 
 func ApiProfile(c *fiber.Ctx) error {
@@ -382,6 +605,7 @@ func ApiSettings(c *fiber.Ctx) error {
 			SplashConfCount:         4,
 			ConnectionTimer:         1000,
 			CurrentVersionCode:      4000011,
+			WheelEnabled:            true,
 		}
 	}
 	return c.JSON(fiber.Map{
@@ -404,6 +628,7 @@ func ApiSettings(c *fiber.Ctx) error {
 		"release_notes":          s.ReleaseNotes,
 		"connection_timer":       s.ConnectionTimer,
 		"current_version_code":   s.CurrentVersionCode,
+		"wheel_enabled":          s.WheelEnabled,
 	})
 }
 

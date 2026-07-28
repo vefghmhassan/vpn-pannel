@@ -40,6 +40,15 @@
           <option value="false" {{ if eq (index $.filters "active") "false" }}selected{{ end }}>غیرفعال</option>
         </select>
       </label>
+      <label class="form-control">
+        <div class="label"><span class="label-text">تعداد در صفحه</span></div>
+        <select name="page_size" class="select select-bordered select-sm">
+          <option value="25" {{ if eq .pageSize 25 }}selected{{ end }}>25</option>
+          <option value="50" {{ if eq .pageSize 50 }}selected{{ end }}>50</option>
+          <option value="100" {{ if eq .pageSize 100 }}selected{{ end }}>100</option>
+          <option value="200" {{ if eq .pageSize 200 }}selected{{ end }}>200</option>
+        </select>
+      </label>
       <div class="flex items-center gap-2">
         <button class="btn btn-sm btn-primary" type="submit">اعمال</button>
         <a class="btn btn-sm" href="/admin/v2ray">پاک کردن</a>
@@ -57,7 +66,7 @@
     <div class="overflow-x-auto">
       <table class="table">
         <thead>
-          <tr><th><input id="selectAllRows" type="checkbox" class="checkbox checkbox-sm" /></th><th>ID</th><th>نام</th><th>آدرس</th><th>پورت</th><th>پروتکل</th><th>تگ‌ها</th><th>Ads</th><th>فعال</th><th>عملیات</th></tr>
+          <tr><th><input id="selectAllRows" type="checkbox" class="checkbox checkbox-sm" /></th><th>ID</th><th>نام</th><th>آدرس</th><th>پورت</th><th>پروتکل</th><th>کشور</th><th>تگ‌ها</th><th>Ads</th><th>فعال</th><th>عملیات</th></tr>
         </thead>
         <tbody>
           {{ range .nodes }}
@@ -68,9 +77,19 @@
             <td>{{ .Address }}</td>
             <td>{{ .Port }}</td>
             <td>{{ .Protocol }}</td>
+            <td>
+              {{ if .CountryCode }}
+                <span class="inline-flex items-center gap-1">
+                  <img src="/country/{{ .CountryCode }}.png" class="w-5 h-4 object-cover rounded-sm" onerror="this.style.display='none'" />
+                  {{ .CountryCode }}
+                </span>
+              {{ else }}
+                <span class="opacity-40">-</span>
+              {{ end }}
+            </td>
             <td>{{ .Tags }}</td>
-            <td>{{ if .Ads }}✅{{ else }}❌{{ end }}</td>
-            <td>{{ if .IsActive }}✅{{ else }}❌{{ end }}</td>
+            <td>{{ if .Ads }}<span class="badge badge-success badge-sm">Ads</span>{{ else }}<span class="badge badge-ghost badge-sm">-</span>{{ end }}</td>
+            <td>{{ if .IsActive }}<span class="badge badge-success badge-sm">فعال</span>{{ else }}<span class="badge badge-ghost badge-sm">غیرفعال</span>{{ end }}</td>
             <td>
               <div class="flex items-center gap-2">
                 <a class="btn btn-xs" href="/admin/v2ray/{{ .ID }}/edit">ویرایش</a>
@@ -83,6 +102,26 @@
       </table>
     </div>
   </form>
+</div>
+
+<div class="h-24"></div>
+
+<div class="fixed bottom-4 left-0 right-0">
+  <div class="container mx-auto flex items-center justify-center gap-4 bg-base-100 rounded-box shadow p-2">
+    {{ if .hasPrev }}
+      <a class="btn" href="/admin/v2ray?{{ .pageQuery }}&amp;page={{ .prevPage }}">قبلی</a>
+    {{ else }}
+      <button class="btn btn-disabled">قبلی</button>
+    {{ end }}
+
+    <span>صفحه {{ .page }} از {{ .totalPages }} (مجموع {{ .total }})</span>
+
+    {{ if .hasNext }}
+      <a class="btn" href="/admin/v2ray?{{ .pageQuery }}&amp;page={{ .nextPage }}">بعدی</a>
+    {{ else }}
+      <button class="btn btn-disabled">بعدی</button>
+    {{ end }}
+  </div>
 </div>
 
 <script>

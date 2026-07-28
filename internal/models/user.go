@@ -18,13 +18,24 @@ type User struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	Username          string `gorm:"uniqueIndex;size:64;not null"`
-	Email             string `gorm:"uniqueIndex;size:120;not null"`
-	PasswordHash      string `gorm:"size:128;not null"`
-	Role              string `gorm:"size:32;index;not null"`
-	IsActive          bool   `gorm:"default:true"`
-	LastSeenAt        *time.Time
-	LastConnectedNode *uint
+	Username     string `gorm:"uniqueIndex;size:64;not null"`
+	Email        string `gorm:"uniqueIndex;size:120;not null"`
+	PasswordHash string `gorm:"size:128;not null"`
+	Role         string `gorm:"size:32;index;not null"`
+	// No GORM default: IsActive's zero value (false) must persist (deactivating
+	// a user) — a `default:true` tag would make GORM skip false on save and let
+	// the DB substitute true instead.
+	IsActive    bool
+	LastSeenAt  *time.Time
+	ClientToken *string `gorm:"size:36;uniqueIndex"`
+
+	// Referral program: a user's own shareable code, and who referred them (if anyone).
+	InviteCode       *string `gorm:"size:6;uniqueIndex"`
+	ReferredByUserID *uint   `gorm:"index"`
+
+	// When the referral reward timer started for this user (set once, the first
+	// time /api/v1/invite/reward-status finds them already past the threshold).
+	RewardActivatedAt *time.Time
 }
 
 // WARNING: For demo simplicity we use SHA256 hash. In production use bcrypt/argon2.
