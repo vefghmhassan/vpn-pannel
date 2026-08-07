@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -19,39 +20,182 @@ import (
 	"vpnpannel/internal/services"
 )
 
-var v2rayAllowedPageSizes = map[int]bool{25: true, 50: true, 100: true, 200: true}
+// v2rayPageSizes is the single source of truth for the page-size selector: the
+// handler validates against it and the template renders its options from it.
+// The default stays low because the browser, not Postgres, is the bottleneck —
+// 2000 rows is roughly 22k DOM nodes.
+var v2rayPageSizes = []int{25, 50, 100, 200, 500, 1000, 2000}
 
 const v2rayDefaultPageSize = 50
 
-func v2rayFilteredQuery(address, protocol, adsFilter, activeFilter string) *gorm.DB {
+func v2rayValidPageSize(n int) bool {
+	for _, s := range v2rayPageSizes {
+		if s == n {
+			return true
+		}
+	}
+	return false
+}
+
+// v2raySortOrders maps a sort key to a fixed ORDER BY clause. The query value is
+// only ever used to look up this map — gorm's Order takes raw SQL, so user input
+// must never reach it directly.
+//
+// "newest"/"oldest" order by id rather than created_at: id is the primary key
+// (so it's indexed) and, being auto-increment, yields the same ordering.
+var v2raySortOrders = map[string]string{
+	"newest":    "id desc",
+	"oldest":    "id asc",
+	"name_asc":  "name asc",
+	"name_desc": "name desc",
+	"address":   "address asc, id desc",
+	"port":      "port asc, id desc",
+	"country":   "country_code asc, id desc",
+}
+
+const v2rayDefaultSort = "newest"
+
+// v2raySortOptions drives the sort dropdown, in display order (map iteration
+// isn't stable, so the labels can't come from v2raySortOrders).
+var v2raySortOptions = []struct{ Value, Label string }{
+	{"newest", "جدیدترین"},
+	{"oldest", "قدیمی‌ترین"},
+	{"name_asc", "نام (الف تا ی)"},
+	{"name_desc", "نام (ی تا الف)"},
+	{"address", "آدرس"},
+	{"port", "پورت"},
+	{"country", "کشور"},
+}
+
+// v2rayNoCountry is the sentinel the country dropdown uses for "no country set",
+// which an empty value can't express (empty already means "all").
+const v2rayNoCountry = "none"
+
+// v2rayFilters is the parsed filter state of the list page. It is carried as one
+// value because the filter set outgrew a positional argument list.
+type v2rayFilters struct {
+	Address  string
+	Protocol string
+	Ads      string // "", "true", "false"
+	Active   string // "", "true", "false"
+	Port     string // "" or a decimal port number
+	Country  string // "", a country code, or v2rayNoCountry
+	Sort     string
+
+	// DateOn gates the created-at window. parseDateRange always resolves a range
+	// (defaulting to the last 30 days), so without an explicit opt-in the list
+	// would silently hide every older node the first time the page is opened.
+	DateOn bool
+	From   time.Time
+	To     time.Time
+}
+
+func v2rayFilteredQuery(f v2rayFilters) *gorm.DB {
 	q := database.DB.Model(&models.V2RayNode{})
-	if address != "" {
-		q = q.Where("address = ?", address)
+	if f.Address != "" {
+		q = q.Where("address = ?", f.Address)
 	}
-	if protocol != "" {
-		q = q.Where("protocol = ?", protocol)
+	if f.Protocol != "" {
+		q = q.Where("protocol = ?", f.Protocol)
 	}
-	if adsFilter == "true" {
+	if f.Ads == "true" {
 		q = q.Where("ads = ?", true)
-	} else if adsFilter == "false" {
+	} else if f.Ads == "false" {
 		q = q.Where("ads = ?", false)
 	}
-	if activeFilter == "true" {
+	if f.Active == "true" {
 		q = q.Where("is_active = ?", true)
-	} else if activeFilter == "false" {
+	} else if f.Active == "false" {
 		q = q.Where("is_active = ?", false)
+	}
+	if n, err := strconv.Atoi(f.Port); err == nil {
+		q = q.Where("port = ?", n)
+	}
+	if f.Country == v2rayNoCountry {
+		q = q.Where("country_code = '' OR country_code IS NULL")
+	} else if f.Country != "" {
+		q = q.Where("country_code = ?", f.Country)
+	}
+	if f.DateOn {
+		q = q.Where("created_at >= ? AND created_at < ?", f.From, f.To)
 	}
 	return q
 }
 
+// v2rayQuery renders the filter state back into a query string. Every parameter
+// has to be here or the pagination links would drop it.
+func (f v2rayFilters) v2rayQuery() url.Values {
+	qs := url.Values{}
+	if f.Address != "" {
+		qs.Set("address", f.Address)
+	}
+	if f.Protocol != "" {
+		qs.Set("protocol", f.Protocol)
+	}
+	if f.Ads != "" {
+		qs.Set("ads", f.Ads)
+	}
+	if f.Active != "" {
+		qs.Set("active", f.Active)
+	}
+	if f.Port != "" {
+		qs.Set("port", f.Port)
+	}
+	if f.Country != "" {
+		qs.Set("country", f.Country)
+	}
+	if f.Sort != "" && f.Sort != v2rayDefaultSort {
+		qs.Set("sort", f.Sort)
+	}
+	return qs
+}
+
+// v2rayChip is one removable "active filter" badge. ClearURL is the current
+// listing with just that one parameter dropped.
+type v2rayChip struct {
+	Label    string
+	ClearURL string
+}
+
+// v2rayReturnTo resolves where an action should send the admin back to, so the
+// active filter, sort and page survive the redirect.
+//
+// The supplied value is only honoured when it points back at this listing:
+// c.Redirect would otherwise happily follow an absolute or protocol-relative URL
+// planted in the form, turning every action into an open redirect.
+func v2rayReturnTo(c *fiber.Ctx) string {
+	next := strings.TrimSpace(c.FormValue("next"))
+	if next == "" {
+		next = strings.TrimSpace(c.Query("next"))
+	}
+	if next == "/admin/v2ray" || strings.HasPrefix(next, "/admin/v2ray?") {
+		return next
+	}
+	return "/admin/v2ray"
+}
+
 func V2RayList(c *fiber.Ctx) error {
-	address := strings.TrimSpace(c.Query("address"))
-	protocol := strings.TrimSpace(c.Query("protocol"))
-	adsFilter := strings.TrimSpace(c.Query("ads"))
-	activeFilter := strings.TrimSpace(c.Query("active"))
+	// The date picker is always resolved so the panel can render it, but the
+	// window is only applied when date_filter is explicitly checked.
+	dr := parseDateRange(c)
+	f := v2rayFilters{
+		Address:  strings.TrimSpace(c.Query("address")),
+		Protocol: strings.TrimSpace(c.Query("protocol")),
+		Ads:      strings.TrimSpace(c.Query("ads")),
+		Active:   strings.TrimSpace(c.Query("active")),
+		Port:     strings.TrimSpace(c.Query("port")),
+		Country:  strings.TrimSpace(c.Query("country")),
+		Sort:     strings.TrimSpace(c.Query("sort")),
+		DateOn:   c.Query("date_filter") != "",
+		From:     dr.From,
+		To:       dr.To,
+	}
+	if _, ok := v2raySortOrders[f.Sort]; !ok {
+		f.Sort = v2rayDefaultSort
+	}
 
 	pageSize := v2rayDefaultPageSize
-	if v, err := strconv.Atoi(c.Query("page_size")); err == nil && v2rayAllowedPageSizes[v] {
+	if v, err := strconv.Atoi(c.Query("page_size")); err == nil && v2rayValidPageSize(v) {
 		pageSize = v
 	}
 	page, _ := strconv.Atoi(c.Query("page", "1"))
@@ -60,7 +204,7 @@ func V2RayList(c *fiber.Ctx) error {
 	}
 
 	var total int64
-	v2rayFilteredQuery(address, protocol, adsFilter, activeFilter).Count(&total)
+	v2rayFilteredQuery(f).Count(&total)
 	totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
 	if totalPages == 0 {
 		totalPages = 1
@@ -70,50 +214,123 @@ func V2RayList(c *fiber.Ctx) error {
 	}
 
 	var nodes []models.V2RayNode
-	v2rayFilteredQuery(address, protocol, adsFilter, activeFilter).
-		Order("id desc").Offset((page - 1) * pageSize).Limit(pageSize).Find(&nodes)
+	v2rayFilteredQuery(f).
+		Order(v2raySortOrders[f.Sort]).Offset((page - 1) * pageSize).Limit(pageSize).Find(&nodes)
 
 	var addresses []string
 	_ = database.DB.Model(&models.V2RayNode{}).Distinct().Order("address").Pluck("address", &addresses).Error
 	var protocols []string
 	_ = database.DB.Model(&models.V2RayNode{}).Distinct().Order("protocol").Pluck("protocol", &protocols).Error
+	var ports []int
+	_ = database.DB.Model(&models.V2RayNode{}).Distinct().Order("port").Pluck("port", &ports).Error
+	var countries []string
+	_ = database.DB.Model(&models.V2RayNode{}).Where("country_code <> ''").
+		Distinct().Order("country_code").Pluck("country_code", &countries).Error
 
-	qs := url.Values{}
-	if address != "" {
-		qs.Set("address", address)
-	}
-	if protocol != "" {
-		qs.Set("protocol", protocol)
-	}
-	if adsFilter != "" {
-		qs.Set("ads", adsFilter)
-	}
-	if activeFilter != "" {
-		qs.Set("active", activeFilter)
+	qs := f.v2rayQuery()
+	if f.DateOn {
+		qs.Set("date_filter", "1")
+		qs.Set("from_y", strconv.Itoa(dr.FromY))
+		qs.Set("from_m", strconv.Itoa(dr.FromM))
+		qs.Set("from_d", strconv.Itoa(dr.FromD))
+		qs.Set("to_y", strconv.Itoa(dr.ToY))
+		qs.Set("to_m", strconv.Itoa(dr.ToM))
+		qs.Set("to_d", strconv.Itoa(dr.ToD))
 	}
 	qs.Set("page_size", strconv.Itoa(pageSize))
 
 	return c.Render("v2ray/index", fiber.Map{
-		"title":      "V2Ray Nodes",
-		"nodes":      nodes,
-		"addresses":  addresses,
-		"protocols":  protocols,
-		"page":       page,
-		"totalPages": totalPages,
-		"total":      total,
-		"pageSize":   pageSize,
-		"hasPrev":    page > 1,
-		"hasNext":    page < totalPages,
-		"prevPage":   page - 1,
-		"nextPage":   page + 1,
-		"pageQuery":  qs.Encode(),
-		"filters": fiber.Map{
-			"address":  address,
-			"protocol": protocol,
-			"ads":      adsFilter,
-			"active":   activeFilter,
-		},
+		"title":       "V2Ray Nodes",
+		"nodes":       nodes,
+		"addresses":   addresses,
+		"protocols":   protocols,
+		"ports":       ports,
+		"countries":   countries,
+		"page":        page,
+		"totalPages":  totalPages,
+		"total":       total,
+		"pageSize":    pageSize,
+		"pageSizes":   v2rayPageSizes,
+		"hasPrev":     page > 1,
+		"hasNext":     page < totalPages,
+		"prevPage":    page - 1,
+		"nextPage":    page + 1,
+		"pageQuery":   qs.Encode(),
+		"f":           f,
+		"sortOptions": v2raySortOptions,
+		"chips":       v2rayBuildChips(f, dr, pageSize),
+		"noCountry":   v2rayNoCountry,
+		"range":       dr,
+		"calendar":    string(calendarFromRequest(c)),
+		"currentURL":  c.OriginalURL(),
 	})
+}
+
+// v2rayBuildChips renders the active filters as removable badges. Each chip's
+// ClearURL is the current listing with only that filter dropped, so removing one
+// never disturbs the others.
+func v2rayBuildChips(f v2rayFilters, dr dateRange, pageSize int) []v2rayChip {
+	var chips []v2rayChip
+
+	// without returns the current listing URL with one filter cleared.
+	without := func(mutate func(*v2rayFilters)) string {
+		cleared := f
+		mutate(&cleared)
+		qs := cleared.v2rayQuery()
+		if cleared.DateOn {
+			qs.Set("date_filter", "1")
+			qs.Set("from_y", strconv.Itoa(dr.FromY))
+			qs.Set("from_m", strconv.Itoa(dr.FromM))
+			qs.Set("from_d", strconv.Itoa(dr.FromD))
+			qs.Set("to_y", strconv.Itoa(dr.ToY))
+			qs.Set("to_m", strconv.Itoa(dr.ToM))
+			qs.Set("to_d", strconv.Itoa(dr.ToD))
+		}
+		if pageSize != v2rayDefaultPageSize {
+			qs.Set("page_size", strconv.Itoa(pageSize))
+		}
+		if len(qs) == 0 {
+			return "/admin/v2ray"
+		}
+		return "/admin/v2ray?" + qs.Encode()
+	}
+
+	add := func(label string, mutate func(*v2rayFilters)) {
+		chips = append(chips, v2rayChip{Label: label, ClearURL: without(mutate)})
+	}
+
+	if f.Address != "" {
+		add("آدرس: "+f.Address, func(x *v2rayFilters) { x.Address = "" })
+	}
+	if f.Protocol != "" {
+		add("پروتکل: "+f.Protocol, func(x *v2rayFilters) { x.Protocol = "" })
+	}
+	if f.Port != "" {
+		add("پورت: "+f.Port, func(x *v2rayFilters) { x.Port = "" })
+	}
+	switch f.Country {
+	case "":
+	case v2rayNoCountry:
+		add("بدون کشور", func(x *v2rayFilters) { x.Country = "" })
+	default:
+		add("کشور: "+f.Country, func(x *v2rayFilters) { x.Country = "" })
+	}
+	if f.Ads == "true" {
+		add("فقط Ads", func(x *v2rayFilters) { x.Ads = "" })
+	} else if f.Ads == "false" {
+		add("بدون Ads", func(x *v2rayFilters) { x.Ads = "" })
+	}
+	if f.Active == "true" {
+		add("فقط فعال", func(x *v2rayFilters) { x.Active = "" })
+	} else if f.Active == "false" {
+		add("فقط غیرفعال", func(x *v2rayFilters) { x.Active = "" })
+	}
+	if f.DateOn {
+		label := fmt.Sprintf("تاریخ: %d/%02d/%02d تا %d/%02d/%02d",
+			dr.FromY, dr.FromM, dr.FromD, dr.ToY, dr.ToM, dr.ToD)
+		add(label, func(x *v2rayFilters) { x.DateOn = false })
+	}
+	return chips
 }
 
 func V2RayNewPage(c *fiber.Ctx) error {
@@ -121,6 +338,8 @@ func V2RayNewPage(c *fiber.Ctx) error {
 	return c.Render("v2ray/new", fiber.Map{
 		"title":         "Add V2Ray Node",
 		"countryPicker": countryPickerVM{Countries: countries},
+		// Carried through the form so saving returns to the filtered listing.
+		"next": v2rayReturnTo(c),
 	})
 }
 
@@ -135,6 +354,8 @@ func V2RayEditPage(c *fiber.Ctx) error {
 		"title":         "Edit V2Ray Node",
 		"node":          node,
 		"countryPicker": countryPickerVM{Countries: countries, Selected: node.CountryCode},
+		// Carried through the form so saving returns to the filtered listing.
+		"next": v2rayReturnTo(c),
 	})
 }
 
@@ -228,7 +449,7 @@ func V2RayCreate(c *fiber.Ctx) error {
 		if added == 0 {
 			return c.Status(fiber.StatusBadRequest).SendString("no valid links")
 		}
-		return c.Redirect("/admin/v2ray")
+		return c.Redirect(v2rayReturnTo(c))
 	}
 
 	if in.Mode == "link" && strings.TrimSpace(in.Link) != "" {
@@ -257,7 +478,7 @@ func V2RayCreate(c *fiber.Ctx) error {
 	if err := database.DB.Create(&node).Error; err != nil {
 		return fiber.ErrInternalServerError
 	}
-	return c.Redirect("/admin/v2ray")
+	return c.Redirect(v2rayReturnTo(c))
 }
 
 func V2RayUpdate(c *fiber.Ctx) error {
@@ -353,7 +574,7 @@ func V2RayUpdate(c *fiber.Ctx) error {
 	if err := database.DB.Save(&node).Error; err != nil {
 		return fiber.ErrInternalServerError
 	}
-	return c.Redirect("/admin/v2ray")
+	return c.Redirect(v2rayReturnTo(c))
 }
 
 type countryPickerVM struct {
@@ -454,7 +675,7 @@ func (a *nameAllocator) allocate(forceNumber bool) string {
 func V2RayDelete(c *fiber.Ctx) error {
 	id, _ := strconv.Atoi(c.Params("id"))
 	database.DB.Delete(&models.V2RayNode{}, id)
-	return c.Redirect("/admin/v2ray")
+	return c.Redirect(v2rayReturnTo(c))
 }
 
 func V2RayBatchDelete(c *fiber.Ctx) error {
@@ -465,8 +686,8 @@ func V2RayBatchDelete(c *fiber.Ctx) error {
 		return fiber.ErrBadRequest
 	}
 	if len(in.IDs) == 0 {
-		return c.Redirect("/admin/v2ray")
+		return c.Redirect(v2rayReturnTo(c))
 	}
 	database.DB.Where("id IN ?", in.IDs).Delete(&models.V2RayNode{})
-	return c.Redirect("/admin/v2ray")
+	return c.Redirect(v2rayReturnTo(c))
 }

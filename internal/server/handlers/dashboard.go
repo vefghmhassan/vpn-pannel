@@ -98,6 +98,56 @@ func opensByUserSince(since time.Time) map[uint]int64 {
 	return opensByUserInRange(since, time.Now().AddDate(1, 0, 0))
 }
 
+// currentSessionWindow is how far back an app-open event still counts as "this
+// session" rather than a previous visit.
+const currentSessionWindow = 15 * time.Minute
+
+// previousOpenAt returns when the user last opened the app *before* the current
+// session, ignoring events from the last few minutes.
+//
+// The window matters: ApiLastConnection writes an AppOpenEvent (and LastSeenAt)
+// on every launch, so measuring from the newest event would report a gap of zero
+// whenever the client happens to check in before asking for messages. Skipping
+// the current session makes the answer independent of that call order.
+//
+// Returns ok=false for a user with no earlier visit — a fresh install, which must
+// not be treated as "inactive forever" just because LastSeenAt is null.
+func previousOpenAt(userID uint, now time.Time) (t time.Time, ok bool) {
+	var event models.AppOpenEvent
+	err := database.DB.
+		Where("user_id = ? AND created_at < ?", userID, now.Add(-currentSessionWindow)).
+		Order("created_at desc").
+		First(&event).Error
+	if err == nil {
+		return event.CreatedAt, true
+	}
+
+	// Fall back to LastSeenAt for users who predate AppOpenEvent, or who are
+	// tracked through endpoints that touch LastSeenAt but log no open event.
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil || user.LastSeenAt == nil {
+		return time.Time{}, false
+	}
+	if user.LastSeenAt.After(now.Add(-currentSessionWindow)) {
+		return time.Time{}, false
+	}
+	return *user.LastSeenAt, true
+}
+
+// daysSincePreviousOpen reports how many whole days the user was away before the
+// current session. Returns (0, false) when there is no earlier visit to measure from.
+func daysSincePreviousOpen(userID uint, now time.Time) (days int, hasPrevious bool) {
+	last, ok := previousOpenAt(userID, now)
+	if !ok {
+		return 0, false
+	}
+	gap := now.Sub(last)
+	if gap < 0 {
+		return 0, true
+	}
+	return int(gap.Hours() / 24), true
+}
+
 // opensByUserInRange returns a map of user_id -> open count for events within [from, to).
 func opensByUserInRange(from, to time.Time) map[uint]int64 {
 	var rows []struct {

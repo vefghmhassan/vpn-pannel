@@ -102,6 +102,12 @@
       <div class="label"><span class="label-text">تعداد کانفیگ برای Splash Conf</span></div>
       <input class="input input-bordered" type="number" min="2" name="splash_conf_count" value="{{ if gt .s.SplashConfCount 0 }}{{ .s.SplashConfCount }}{{ else }}4{{ end }}" />
     </label>
+    <label class="form-control cursor-pointer">
+      <div class="label">
+        <span class="label-text">پخش کانفیگ‌های Splash بین سرورهای مختلف</span>
+      </div>
+      <input type="checkbox" name="splash_diverse_servers" class="toggle toggle-primary js-setting-toggle" {{ if .s.SplashDiverseServers }}checked{{ end }} />
+    </label>
     <label class="form-control">
       <div class="label"><span class="label-text">لینک اپلیکیشن (Link App)</span></div>
       <input class="input input-bordered" name="link_app" value="{{ .s.LinkApp }}" placeholder="https://..." />

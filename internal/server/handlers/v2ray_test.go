@@ -6,6 +6,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
 
 	"vpnpannel/internal/database"
 	"vpnpannel/internal/models"
@@ -125,6 +128,149 @@ func TestV2RayList_FiltersByActive(t *testing.T) {
 	}
 	if strings.Contains(text, activeName) {
 		t.Errorf("expected the inactive-only filter to exclude %q", activeName)
+	}
+}
+
+// v2rayListBody fetches the listing and returns its HTML. The harness runs over
+// the real dev database, so these tests assert on the presence of their own
+// uniquely-named nodes rather than on row counts.
+func v2rayListBody(t *testing.T, app *fiber.App, query string) string {
+	t.Helper()
+	resp := testutil.DoJSON(t, app, "GET", "/admin/v2ray"+query, nil, adminAuth(t))
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200 for %q, got %d", query, resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	return string(body)
+}
+
+func TestV2RayList_FiltersByPortAndCountry(t *testing.T) {
+	app := apptest.New(t)
+	match := testutil.UniqueName("p443fr")
+	otherPort := testutil.UniqueName("p8443fr")
+	otherCountry := testutil.UniqueName("p443de")
+	database.DB.Create(&models.V2RayNode{Name: match, Address: "1.1.1.1", Port: 443, Protocol: "vless", CountryCode: "FR", IsActive: true})
+	database.DB.Create(&models.V2RayNode{Name: otherPort, Address: "1.1.1.1", Port: 8443, Protocol: "vless", CountryCode: "FR", IsActive: true})
+	database.DB.Create(&models.V2RayNode{Name: otherCountry, Address: "1.1.1.1", Port: 443, Protocol: "vless", CountryCode: "DE", IsActive: true})
+
+	text := v2rayListBody(t, app, "?port=443&country=FR&page_size=2000")
+	if !strings.Contains(text, match) {
+		t.Errorf("expected port+country filter to include %q", match)
+	}
+	if strings.Contains(text, otherPort) {
+		t.Errorf("expected the port filter to exclude %q", otherPort)
+	}
+	if strings.Contains(text, otherCountry) {
+		t.Errorf("expected the country filter to exclude %q", otherCountry)
+	}
+}
+
+func TestV2RayList_FiltersByNoCountry(t *testing.T) {
+	app := apptest.New(t)
+	blank := testutil.UniqueName("nocountry")
+	withCountry := testutil.UniqueName("hascountry")
+	database.DB.Create(&models.V2RayNode{Name: blank, Address: "9.9.9.9", Port: 443, Protocol: "vless", IsActive: true})
+	database.DB.Create(&models.V2RayNode{Name: withCountry, Address: "9.9.9.9", Port: 443, Protocol: "vless", CountryCode: "IT", IsActive: true})
+
+	text := v2rayListBody(t, app, "?address=9.9.9.9&country=none&page_size=2000")
+	if !strings.Contains(text, blank) {
+		t.Errorf("expected the no-country filter to include %q", blank)
+	}
+	if strings.Contains(text, withCountry) {
+		t.Errorf("expected the no-country filter to exclude %q", withCountry)
+	}
+}
+
+func TestV2RayList_SortNewestAndOldest(t *testing.T) {
+	app := apptest.New(t)
+	addr := testutil.UniqueName("sort") + ".example.com"
+	older := testutil.UniqueName("older")
+	newer := testutil.UniqueName("newer")
+	database.DB.Create(&models.V2RayNode{Name: older, Address: addr, Port: 443, Protocol: "vless", IsActive: true})
+	database.DB.Create(&models.V2RayNode{Name: newer, Address: addr, Port: 443, Protocol: "vless", IsActive: true})
+
+	newestFirst := v2rayListBody(t, app, "?address="+addr+"&sort=newest&page_size=2000")
+	if strings.Index(newestFirst, newer) > strings.Index(newestFirst, older) {
+		t.Errorf("expected sort=newest to put %q before %q", newer, older)
+	}
+	oldestFirst := v2rayListBody(t, app, "?address="+addr+"&sort=oldest&page_size=2000")
+	if strings.Index(oldestFirst, older) > strings.Index(oldestFirst, newer) {
+		t.Errorf("expected sort=oldest to put %q before %q", older, newer)
+	}
+}
+
+func TestV2RayList_RejectsUnknownSort(t *testing.T) {
+	// The sort value is looked up in a whitelist because gorm's Order takes raw
+	// SQL; anything unrecognised must fall back to the default, not reach the DB.
+	app := apptest.New(t)
+	name := testutil.UniqueName("sortguard")
+	database.DB.Create(&models.V2RayNode{Name: name, Address: "4.4.4.4", Port: 443, Protocol: "vless", IsActive: true})
+
+	text := v2rayListBody(t, app, "?address=4.4.4.4&sort=id%3BDROP+TABLE+v2_ray_nodes&page_size=2000")
+	if !strings.Contains(text, name) {
+		t.Errorf("expected an unknown sort to fall back to the default listing")
+	}
+}
+
+func TestV2RayList_PageSizeAllowlist(t *testing.T) {
+	app := apptest.New(t)
+
+	if text := v2rayListBody(t, app, "?page_size=2000"); !strings.Contains(text, `value="2000" selected`) {
+		t.Errorf("expected page_size=2000 to be accepted and marked selected")
+	}
+	if text := v2rayListBody(t, app, "?page_size=3000"); !strings.Contains(text, `value="50" selected`) {
+		t.Errorf("expected an out-of-allowlist page_size to fall back to the default of 50")
+	}
+}
+
+func TestV2RayList_DateFilterOffByDefault(t *testing.T) {
+	// parseDateRange defaults to the last 30 days. Without an explicit
+	// date_filter opt-in the listing must still show older nodes.
+	app := apptest.New(t)
+	name := testutil.UniqueName("ancient")
+	node := models.V2RayNode{Name: name, Address: "5.5.5.5", Port: 443, Protocol: "vless", IsActive: true}
+	database.DB.Create(&node)
+	database.DB.Model(&node).UpdateColumn("created_at", time.Now().AddDate(-1, 0, 0))
+
+	if text := v2rayListBody(t, app, "?address=5.5.5.5&page_size=2000"); !strings.Contains(text, name) {
+		t.Fatalf("expected a year-old node to remain visible without date_filter")
+	}
+	if text := v2rayListBody(t, app, "?address=5.5.5.5&date_filter=1&page_size=2000"); strings.Contains(text, name) {
+		t.Errorf("expected date_filter=1 to apply the 30-day window and hide %q", name)
+	}
+}
+
+func TestV2RayBatchDelete_PreservesFilterViaNext(t *testing.T) {
+	app := apptest.New(t)
+	node := models.V2RayNode{Name: testutil.UniqueName("keepfilter"), Address: "6.6.6.6", Port: 443, Protocol: "vless", IsActive: true}
+	database.DB.Create(&node)
+
+	want := "/admin/v2ray?port=443&sort=oldest"
+	resp := testutil.DoForm(t, app, "POST", "/admin/v2ray/batch-delete", url.Values{
+		"ids":  {strconv.FormatUint(uint64(node.ID), 10)},
+		"next": {want},
+	}, adminAuth(t))
+	if got := resp.Header.Get("Location"); got != want {
+		t.Errorf("expected the action to return to %q, got %q", want, got)
+	}
+}
+
+func TestV2RayDelete_RejectsExternalNext(t *testing.T) {
+	// next is attacker-controllable, so anything not pointing back at this
+	// listing must be discarded rather than followed.
+	app := apptest.New(t)
+	node := models.V2RayNode{Name: testutil.UniqueName("openredir"), Address: "7.7.7.7", Port: 443, Protocol: "vless", IsActive: true}
+	database.DB.Create(&node)
+
+	for _, bad := range []string{"https://evil.example.com", "//evil.example.com", "/admin/users"} {
+		n := models.V2RayNode{Name: testutil.UniqueName("openredir"), Address: "7.7.7.7", Port: 443, Protocol: "vless", IsActive: true}
+		database.DB.Create(&n)
+		resp := testutil.DoForm(t, app, "POST", "/admin/v2ray/"+strconv.FormatUint(uint64(n.ID), 10)+"/delete", url.Values{
+			"next": {bad},
+		}, adminAuth(t))
+		if got := resp.Header.Get("Location"); got != "/admin/v2ray" {
+			t.Errorf("expected next=%q to be rejected, redirected to %q", bad, got)
+		}
 	}
 }
 

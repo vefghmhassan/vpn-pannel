@@ -80,6 +80,32 @@ func TestSettingsUpdate_SplashConfCountMinimumTwo(t *testing.T) {
 	}
 }
 
+func TestSettingsUpdate_SplashDiverseServersTogglesOff(t *testing.T) {
+	// SplashDiverseServers defaults to on and carries no gorm default tag, so
+	// this guards the same zero-value trap as TestSettingsUpdate_ChecksboxFalseWhenAbsent:
+	// a `default:true` tag would make gorm skip false and leave the admin unable
+	// to turn address spreading off.
+	app := apptest.New(t)
+	var s models.AppSettings
+	database.DB.First(&s, 1)
+	s.SplashDiverseServers = true
+	database.DB.Save(&s)
+
+	resp := testutil.DoForm(t, app, "POST", "/admin/settings", url.Values{
+		"current_version": {"1.2.3"},
+		// splash_diverse_servers intentionally omitted == unchecked
+	}, adminAuth(t))
+	if resp.StatusCode != 302 && resp.StatusCode != 303 {
+		t.Fatalf("expected a redirect, got %d", resp.StatusCode)
+	}
+
+	var reloaded models.AppSettings
+	database.DB.First(&reloaded, 1)
+	if reloaded.SplashDiverseServers {
+		t.Errorf("expected SplashDiverseServers to be false after submitting the form without the checkbox")
+	}
+}
+
 func TestSettingsDelete_RemovesSingletonRow(t *testing.T) {
 	app := apptest.New(t)
 	resp := testutil.DoJSON(t, app, "POST", "/admin/settings/delete", nil, adminAuth(t))

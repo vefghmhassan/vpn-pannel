@@ -54,6 +54,9 @@ func RegisterRoutes(app *fiber.App) {
 	// Lucky wheel (گردونه شانس)
 	admin.Get("/wheel", handlers.WheelPage)
 	admin.Post("/wheel", handlers.WheelUpdate)
+	// In-app reminder messages (پیام‌های یادآور)
+	admin.Get("/messages", handlers.MessagesPage)
+	admin.Post("/messages", handlers.MessagesUpdate)
 	// Users
 	admin.Get("/users", handlers.UsersList)
 	admin.Get("/users/active", handlers.UsersActive)
@@ -101,6 +104,7 @@ func RegisterRoutes(app *fiber.App) {
 	api.Post("/invite/code", handlers.ApiInviteCode)
 	api.Post("/invite/redeem", handlers.ApiInviteRedeem)
 	api.Post("/invite/reward-status", handlers.ApiInviteRewardStatus)
+	api.Post("/messages", handlers.ApiMessages)
 	api.Get("/settings", handlers.ApiSettings)
 	api.Get("/wheel", handlers.ApiWheel)
 	api.Post("/app/check-update", handlers.ApiCheckUpdate)

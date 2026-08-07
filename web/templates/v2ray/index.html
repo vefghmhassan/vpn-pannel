@@ -1,64 +1,156 @@
 <div class="flex justify-between items-center mb-4">
   <h2 class="text-xl font-bold">V2Ray Nodes</h2>
-  <a href="/admin/v2ray/new" class="btn btn-primary">افزودن</a>
+  <a href="/admin/v2ray/new?next={{ .currentURL | urlquery }}" class="btn btn-primary">افزودن</a>
 </div>
 
-<div class="card bg-base-100 shadow mb-4">
-  <form method="get" action="/admin/v2ray" class="card-body p-4">
-    <div class="flex flex-wrap gap-3 items-end">
+<!--
+  One GET form spans both the quick bar and the side panel, so a single "اعمال"
+  submits everything. The panel is position:fixed, which does not affect form
+  membership. The table's POST form is a sibling, never nested inside this one.
+-->
+<form id="filterForm" method="get" action="/admin/v2ray">
+  <div class="card bg-base-100 shadow mb-3">
+    <div class="card-body p-4">
+      <div class="flex flex-wrap gap-3 items-end">
+        <label class="form-control">
+          <div class="label"><span class="label-text">مرتب‌سازی</span></div>
+          <select name="sort" class="select select-bordered select-sm">
+            {{ range .sortOptions }}
+              <option value="{{ .Value }}" {{ if eq $.f.Sort .Value }}selected{{ end }}>{{ .Label }}</option>
+            {{ end }}
+          </select>
+        </label>
+
+        <label class="form-control">
+          <div class="label"><span class="label-text">تعداد در صفحه</span></div>
+          <select name="page_size" class="select select-bordered select-sm">
+            {{ range .pageSizes }}
+              <option value="{{ . }}" {{ if eq $.pageSize . }}selected{{ end }}>{{ . }}</option>
+            {{ end }}
+          </select>
+        </label>
+
+        <div class="flex items-center gap-2">
+          <button class="btn btn-sm btn-primary" type="submit">اعمال</button>
+          <button class="btn btn-sm btn-outline gap-1" type="button" id="openFilters">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M6 12h12M10 20h4" />
+            </svg>
+            فیلتر پیشرفته
+            {{ if .chips }}<span class="badge badge-primary badge-sm">{{ len .chips }}</span>{{ end }}
+          </button>
+          <a class="btn btn-sm" href="/admin/v2ray">پاک کردن</a>
+        </div>
+
+        <div class="grow"></div>
+        <div class="text-sm opacity-70">{{ .total }} نود</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backdrop + side panel. Hand-rolled rather than DaisyUI's drawer, whose
+       .drawer-side needs the whole page inside .drawer-content; page content
+       here lives inside the layout's centered container. -->
+  <div id="filterBackdrop" class="fixed inset-0 bg-black/40 z-40 hidden"></div>
+  <aside id="filterPanel"
+         class="fixed inset-y-0 left-0 z-50 w-96 max-w-full bg-base-100 shadow-2xl overflow-y-auto -translate-x-full transition-transform duration-300">
+    <div class="p-4 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold">فیلتر پیشرفته</h3>
+        <button type="button" class="btn btn-sm btn-circle btn-ghost" id="closeFilters" aria-label="بستن">✕</button>
+      </div>
+
       <label class="form-control">
         <div class="label"><span class="label-text">آدرس</span></div>
         <select name="address" class="select select-bordered select-sm">
           <option value="">همه</option>
           {{ range .addresses }}
-            <option value="{{ . }}" {{ if eq (index $.filters "address") . }}selected{{ end }}>{{ . }}</option>
+            <option value="{{ . }}" {{ if eq $.f.Address . }}selected{{ end }}>{{ . }}</option>
           {{ end }}
         </select>
       </label>
+
+      <label class="form-control">
+        <div class="label"><span class="label-text">پورت</span></div>
+        <select name="port" class="select select-bordered select-sm">
+          <option value="">همه</option>
+          {{ range .ports }}
+            <option value="{{ . }}" {{ if eq $.f.Port (printf "%d" .) }}selected{{ end }}>{{ . }}</option>
+          {{ end }}
+        </select>
+      </label>
+
+      <label class="form-control">
+        <div class="label"><span class="label-text">کشور</span></div>
+        <select name="country" class="select select-bordered select-sm">
+          <option value="">همه</option>
+          <option value="{{ .noCountry }}" {{ if eq $.f.Country $.noCountry }}selected{{ end }}>بدون کشور</option>
+          {{ range .countries }}
+            <option value="{{ . }}" {{ if eq $.f.Country . }}selected{{ end }}>{{ . }}</option>
+          {{ end }}
+        </select>
+      </label>
+
       <label class="form-control">
         <div class="label"><span class="label-text">پروتکل</span></div>
         <select name="protocol" class="select select-bordered select-sm">
           <option value="">همه</option>
           {{ range .protocols }}
-            <option value="{{ . }}" {{ if eq (index $.filters "protocol") . }}selected{{ end }}>{{ . }}</option>
+            <option value="{{ . }}" {{ if eq $.f.Protocol . }}selected{{ end }}>{{ . }}</option>
           {{ end }}
         </select>
       </label>
+
       <label class="form-control">
         <div class="label"><span class="label-text">Ads</span></div>
         <select name="ads" class="select select-bordered select-sm">
           <option value="">همه</option>
-          <option value="true" {{ if eq (index $.filters "ads") "true" }}selected{{ end }}>Ads</option>
-          <option value="false" {{ if eq (index $.filters "ads") "false" }}selected{{ end }}>No Ads</option>
+          <option value="true" {{ if eq .f.Ads "true" }}selected{{ end }}>Ads</option>
+          <option value="false" {{ if eq .f.Ads "false" }}selected{{ end }}>No Ads</option>
         </select>
       </label>
+
       <label class="form-control">
         <div class="label"><span class="label-text">فعال</span></div>
         <select name="active" class="select select-bordered select-sm">
           <option value="">همه</option>
-          <option value="true" {{ if eq (index $.filters "active") "true" }}selected{{ end }}>فعال</option>
-          <option value="false" {{ if eq (index $.filters "active") "false" }}selected{{ end }}>غیرفعال</option>
+          <option value="true" {{ if eq .f.Active "true" }}selected{{ end }}>فعال</option>
+          <option value="false" {{ if eq .f.Active "false" }}selected{{ end }}>غیرفعال</option>
         </select>
       </label>
-      <label class="form-control">
-        <div class="label"><span class="label-text">تعداد در صفحه</span></div>
-        <select name="page_size" class="select select-bordered select-sm">
-          <option value="25" {{ if eq .pageSize 25 }}selected{{ end }}>25</option>
-          <option value="50" {{ if eq .pageSize 50 }}selected{{ end }}>50</option>
-          <option value="100" {{ if eq .pageSize 100 }}selected{{ end }}>100</option>
-          <option value="200" {{ if eq .pageSize 200 }}selected{{ end }}>200</option>
-        </select>
+
+      <div class="divider my-1"></div>
+
+      <label class="label cursor-pointer justify-start gap-3">
+        <input type="checkbox" name="date_filter" value="1" class="checkbox checkbox-sm" {{ if .f.DateOn }}checked{{ end }} />
+        <span class="label-text">فیلتر بر اساس تاریخ ساخت</span>
       </label>
-      <div class="flex items-center gap-2">
-        <button class="btn btn-sm btn-primary" type="submit">اعمال</button>
+      {{ template "partials/daterange_fields" .range }}
+
+      <div class="flex gap-2 pt-2">
+        <button class="btn btn-primary btn-sm grow" type="submit">اعمال فیلترها</button>
         <a class="btn btn-sm" href="/admin/v2ray">پاک کردن</a>
       </div>
     </div>
-  </form>
+  </aside>
+</form>
+
+{{ if .chips }}
+<div class="flex flex-wrap items-center gap-2 mb-3">
+  <span class="text-xs opacity-70">فیلترهای فعال:</span>
+  {{ range .chips }}
+    <a class="badge badge-outline gap-1 py-3 hover:badge-error" href="{{ .ClearURL }}" title="حذف این فیلتر">
+      {{ .Label }} <span class="font-bold">✕</span>
+    </a>
+  {{ end }}
+  <a class="btn btn-ghost btn-xs" href="/admin/v2ray">حذف همه</a>
 </div>
+{{ end }}
 
 <div class="card bg-base-100 shadow">
   <form class="card-body" method="post" action="/admin/v2ray/batch-delete" id="batchDeleteForm">
+    <!-- Sends every action on this form back to the current filtered listing. -->
+    <input type="hidden" name="next" value="{{ .currentURL }}" />
     <div class="flex items-center gap-2 mb-3">
       <button class="btn btn-sm btn-error" type="submit" onclick="return confirm('آیتم‌های انتخاب‌شده حذف شوند؟')">حذف انتخاب‌شده‌ها</button>
       <span class="text-xs opacity-70">انتخاب تکی یا همه از چک‌باکس‌ها</span>
@@ -66,7 +158,7 @@
     <div class="overflow-x-auto">
       <table class="table">
         <thead>
-          <tr><th><input id="selectAllRows" type="checkbox" class="checkbox checkbox-sm" /></th><th>ID</th><th>نام</th><th>آدرس</th><th>پورت</th><th>پروتکل</th><th>کشور</th><th>تگ‌ها</th><th>Ads</th><th>فعال</th><th>عملیات</th></tr>
+          <tr><th><input id="selectAllRows" type="checkbox" class="checkbox checkbox-sm" /></th><th>ID</th><th>نام</th><th>آدرس</th><th>پورت</th><th>پروتکل</th><th>کشور</th><th>تگ‌ها</th><th>Ads</th><th>فعال</th><th>تاریخ ساخت</th><th>عملیات</th></tr>
         </thead>
         <tbody>
           {{ range .nodes }}
@@ -90,9 +182,10 @@
             <td>{{ .Tags }}</td>
             <td>{{ if .Ads }}<span class="badge badge-success badge-sm">Ads</span>{{ else }}<span class="badge badge-ghost badge-sm">-</span>{{ end }}</td>
             <td>{{ if .IsActive }}<span class="badge badge-success badge-sm">فعال</span>{{ else }}<span class="badge badge-ghost badge-sm">غیرفعال</span>{{ end }}</td>
+            <td class="text-xs opacity-80 whitespace-nowrap">{{ fmtTime .CreatedAt $.calendar }}</td>
             <td>
               <div class="flex items-center gap-2">
-                <a class="btn btn-xs" href="/admin/v2ray/{{ .ID }}/edit">ویرایش</a>
+                <a class="btn btn-xs" href="/admin/v2ray/{{ .ID }}/edit?next={{ $.currentURL | urlquery }}">ویرایش</a>
                 <button class="btn btn-xs btn-error" type="submit" formaction="/admin/v2ray/{{ .ID }}/delete" formmethod="post" onclick="return confirm('حذف شود؟')">حذف</button>
               </div>
             </td>
@@ -146,5 +239,25 @@
 
     rows.forEach((r) => r.addEventListener("change", syncMaster));
     syncMaster();
+  })();
+
+  (function () {
+    const panel = document.getElementById("filterPanel");
+    const backdrop = document.getElementById("filterBackdrop");
+    const openBtn = document.getElementById("openFilters");
+    const closeBtn = document.getElementById("closeFilters");
+    if (!panel || !backdrop || !openBtn) return;
+
+    const setOpen = (open) => {
+      panel.classList.toggle("-translate-x-full", !open);
+      backdrop.classList.toggle("hidden", !open);
+    };
+
+    openBtn.addEventListener("click", () => setOpen(true));
+    if (closeBtn) closeBtn.addEventListener("click", () => setOpen(false));
+    backdrop.addEventListener("click", () => setOpen(false));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") setOpen(false);
+    });
   })();
 </script>

@@ -1,0 +1,147 @@
+<div class="bg-base-100 rounded-box shadow p-3 mb-4 flex items-center justify-between flex-wrap gap-2">
+  <h1 class="text-2xl font-bold">پیام‌های یادآور</h1>
+  <div class="text-sm">
+    <span>تعداد پیام‌ها: <b id="msgCount">0</b> / {{ .maxMessages }}</span>
+  </div>
+</div>
+
+<div class="alert alert-info mb-4">
+  <div class="text-sm">
+    <p class="font-bold mb-1">این پیام‌ها چطور کار می‌کنند؟</p>
+    <ul class="list-disc pr-5 space-y-1 text-xs opacity-90">
+      <li>اپ لیست پیام‌ها را از سرور می‌گیرد و <b>خودش</b> نشان می‌دهد — هیچ پوش سروری ارسال نمی‌شود.</li>
+      <li>«روز غیرفعالی» یعنی پیام فقط به کسانی نشان داده شود که این تعداد روز اپ را باز نکرده‌اند. مقدار ۰ یعنی همه.</li>
+      <li>«هر چند روز» یعنی فاصله‌ی تکرار. مثلاً ۱ یعنی چند روز پشت سر هم، ۷ یعنی هفته‌ای یک‌بار.</li>
+      <li>«حداکثر دفعات» یعنی بعد از این تعداد نمایش دیگر نشان داده نشود. ۰ یعنی بی‌نهایت. شمارش دفعات را خود اپ نگه می‌دارد.</li>
+      <li>پیام‌های ذخیره‌شده شناسه‌شان ثابت می‌ماند، پس ویرایش متن، شمارش کاربران را ریست نمی‌کند.</li>
+    </ul>
+  </div>
+</div>
+
+<form method="post" action="/admin/messages" id="msgForm">
+  <input type="hidden" name="messages_json" id="messagesJson" />
+
+  <div class="card bg-base-100 shadow mb-4">
+    <div class="card-body p-3">
+      <div class="flex items-center gap-2 mb-3">
+        <button type="button" class="btn btn-sm btn-primary" id="addRowBtn">افزودن پیام</button>
+        <span class="text-xs opacity-70">تا {{ .maxMessages }} پیام می‌توانید بسازید</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>عنوان</th>
+              <th>متن</th>
+              <th>روز غیرفعالی</th>
+              <th>هر چند روز</th>
+              <th>حداکثر دفعات</th>
+              <th>داخل اپ</th>
+              <th>نوتیف لوکال</th>
+              <th>فعال</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="msgRows">
+            {{ range .messages }}
+            <tr class="msg-row" data-id="{{ .ID }}">
+              <td class="js-index">1</td>
+              <td><input type="text" class="input input-bordered input-sm w-40 js-title" value="{{ .Title }}" placeholder="عنوان" /></td>
+              <td><textarea class="textarea textarea-bordered textarea-sm w-64 js-body" rows="2" placeholder="متن پیام">{{ .Body }}</textarea></td>
+              <td><input type="number" min="0" class="input input-bordered input-sm w-20 js-inactive-days" value="{{ .InactiveDays }}" /></td>
+              <td><input type="number" min="0" class="input input-bordered input-sm w-20 js-repeat-days" value="{{ .RepeatEveryDays }}" /></td>
+              <td><input type="number" min="0" class="input input-bordered input-sm w-20 js-max-shows" value="{{ .MaxShows }}" /></td>
+              <td><input type="checkbox" class="checkbox checkbox-sm js-in-app" {{ if .ShowInApp }}checked{{ end }} /></td>
+              <td><input type="checkbox" class="checkbox checkbox-sm js-local-notif" {{ if .LocalNotification }}checked{{ end }} /></td>
+              <td><input type="checkbox" class="checkbox checkbox-sm js-active" {{ if .IsActive }}checked{{ end }} /></td>
+              <td><button type="button" class="btn btn-ghost btn-xs text-error js-remove">حذف</button></td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary">ذخیره</button>
+</form>
+
+<template id="rowTemplate">
+  <tr class="msg-row" data-id="0">
+    <td class="js-index">1</td>
+    <td><input type="text" class="input input-bordered input-sm w-40 js-title" value="" placeholder="عنوان" /></td>
+    <td><textarea class="textarea textarea-bordered textarea-sm w-64 js-body" rows="2" placeholder="متن پیام"></textarea></td>
+    <td><input type="number" min="0" class="input input-bordered input-sm w-20 js-inactive-days" value="7" /></td>
+    <td><input type="number" min="0" class="input input-bordered input-sm w-20 js-repeat-days" value="7" /></td>
+    <td><input type="number" min="0" class="input input-bordered input-sm w-20 js-max-shows" value="0" /></td>
+    <td><input type="checkbox" class="checkbox checkbox-sm js-in-app" checked /></td>
+    <td><input type="checkbox" class="checkbox checkbox-sm js-local-notif" checked /></td>
+    <td><input type="checkbox" class="checkbox checkbox-sm js-active" checked /></td>
+    <td><button type="button" class="btn btn-ghost btn-xs text-error js-remove">حذف</button></td>
+  </tr>
+</template>
+
+<script>
+  (function () {
+    var form = document.getElementById("msgForm");
+    var hidden = document.getElementById("messagesJson");
+    var tbody = document.getElementById("msgRows");
+    var tpl = document.getElementById("rowTemplate");
+    var counter = document.getElementById("msgCount");
+    var maxMessages = {{ .maxMessages }};
+
+    function rows() {
+      return Array.prototype.slice.call(tbody.querySelectorAll("tr.msg-row"));
+    }
+
+    function renumber() {
+      rows().forEach(function (tr, i) {
+        tr.querySelector(".js-index").textContent = i + 1;
+      });
+      counter.textContent = rows().length;
+    }
+
+    function addRow() {
+      if (rows().length >= maxMessages) {
+        alert("حداکثر " + maxMessages + " پیام می‌توانید داشته باشید");
+        return;
+      }
+      tbody.appendChild(tpl.content.cloneNode(true));
+      renumber();
+    }
+
+    document.getElementById("addRowBtn").addEventListener("click", addRow);
+
+    tbody.addEventListener("click", function (e) {
+      var btn = e.target.closest(".js-remove");
+      if (!btn) return;
+      var tr = btn.closest("tr.msg-row");
+      if (tr) tr.remove();
+      renumber();
+    });
+
+    form.addEventListener("submit", function () {
+      // data-id carries the existing row's primary key so the server updates it in
+      // place. A new row sends 0 and gets created. Never renumber these.
+      var data = rows().map(function (tr) {
+        return {
+          id: parseInt(tr.getAttribute("data-id"), 10) || 0,
+          title: tr.querySelector(".js-title").value.trim(),
+          body: tr.querySelector(".js-body").value.trim(),
+          inactiveDays: parseInt(tr.querySelector(".js-inactive-days").value, 10) || 0,
+          repeatEveryDays: parseInt(tr.querySelector(".js-repeat-days").value, 10) || 0,
+          maxShows: parseInt(tr.querySelector(".js-max-shows").value, 10) || 0,
+          showInApp: tr.querySelector(".js-in-app").checked,
+          localNotification: tr.querySelector(".js-local-notif").checked,
+          isActive: tr.querySelector(".js-active").checked
+        };
+      });
+      hidden.value = JSON.stringify(data);
+    });
+
+    if (rows().length === 0) addRow();
+    renumber();
+  })();
+</script>

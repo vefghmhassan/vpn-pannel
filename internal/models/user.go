@@ -33,9 +33,12 @@ type User struct {
 	InviteCode       *string `gorm:"size:6;uniqueIndex"`
 	ReferredByUserID *uint   `gorm:"index"`
 
-	// When the referral reward timer started for this user (set once, the first
-	// time /api/v1/invite/reward-status finds them already past the threshold).
-	RewardActivatedAt *time.Time
+	// Absolute end of this user's ad-free window. Referral rewards stack onto it
+	// rather than overwriting, so a second referral extends the window.
+	RewardExpiresAt *time.Time
+	// How many referrals have already paid a reward to this user, used to enforce
+	// AppSettings.ReferralMaxRewardedInvites.
+	RewardedReferralCount int `gorm:"not null;default:0"`
 }
 
 // WARNING: For demo simplicity we use SHA256 hash. In production use bcrypt/argon2.

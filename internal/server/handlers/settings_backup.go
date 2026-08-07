@@ -44,11 +44,14 @@ type AppSettingsBackup struct {
 	PrivacyURL              string `json:"privacy_url"`
 	ConnectedTimeoutSeconds int    `json:"connected_timeout"`
 	SplashConfCount         int    `json:"splash_conf_count"`
-	LinkApp                 string `json:"link_app"`
-	ReleaseNotes            string `json:"release_notes"`
-	ConnectionTimer         int64  `json:"connection_timer"`
-	CurrentVersionCode      int    `json:"current_version_code"`
-	WheelEnabled            bool   `json:"wheel_enabled"`
+	// Pointer so a backup taken before this setting existed can be told apart
+	// from one that genuinely has it off — see applyAppSettings.
+	SplashDiverseServers *bool  `json:"splash_diverse_servers"`
+	LinkApp              string `json:"link_app"`
+	ReleaseNotes         string `json:"release_notes"`
+	ConnectionTimer      int64  `json:"connection_timer"`
+	CurrentVersionCode   int    `json:"current_version_code"`
+	WheelEnabled         bool   `json:"wheel_enabled"`
 }
 
 type V2RayNodeBackup struct {
@@ -121,6 +124,7 @@ func SettingsExport(c *fiber.Ctx) error {
 			PrivacyURL:              s.PrivacyURL,
 			ConnectedTimeoutSeconds: s.ConnectedTimeoutSeconds,
 			SplashConfCount:         s.SplashConfCount,
+			SplashDiverseServers:    &s.SplashDiverseServers,
 			LinkApp:                 s.LinkApp,
 			ReleaseNotes:            s.ReleaseNotes,
 			ConnectionTimer:         s.ConnectionTimer,
@@ -249,6 +253,11 @@ func applyAppSettings(dst *models.AppSettings, in AppSettingsBackup) {
 	dst.PrivacyURL = in.PrivacyURL
 	dst.ConnectedTimeoutSeconds = in.ConnectedTimeoutSeconds
 	dst.SplashConfCount = in.SplashConfCount
+	// Only applied when the key is present, so importing a backup taken before
+	// this setting existed leaves it alone instead of silently turning it off.
+	if in.SplashDiverseServers != nil {
+		dst.SplashDiverseServers = *in.SplashDiverseServers
+	}
 	dst.LinkApp = in.LinkApp
 	dst.ReleaseNotes = in.ReleaseNotes
 	dst.ConnectionTimer = in.ConnectionTimer

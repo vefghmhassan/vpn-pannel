@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"vpnpannel/internal/database"
 	"vpnpannel/internal/models"
@@ -236,12 +237,105 @@ func referralCount(userID uint) int64 {
 	return count
 }
 
+// grantAdFreeReward extends the user's ad-free window by d. If a previous reward is
+// still running it stacks on top of the remaining time (so a second referral adds to
+// the first rather than replacing it); otherwise the window starts now.
+//
+// This only mutates the in-memory user — the caller is responsible for persisting it.
+func grantAdFreeReward(u *models.User, d time.Duration) {
+	base := time.Now()
+	if u.RewardExpiresAt != nil && u.RewardExpiresAt.After(base) {
+		base = *u.RewardExpiresAt
+	}
+	exp := base.Add(d)
+	u.RewardExpiresAt = &exp
+}
+
+// serverClockFields returns the clock metadata that every invite response carries,
+// so the client never has to trust its own device clock or guess the server's UTC
+// offset when it renders a countdown.
+func serverClockFields(now time.Time) fiber.Map {
+	_, offsetSeconds := now.Zone()
+	return fiber.Map{
+		"server_time":               now, // RFC3339 with the server's offset
+		"server_time_unix":          now.Unix(),
+		"server_timezone":           now.Location().String(),
+		"server_utc_offset_seconds": offsetSeconds,
+	}
+}
+
+// rewardStatusFields describes the caller's remaining ad-free window. Both sides of
+// a referral get this identical shape from every invite endpoint.
+//
+// Every key is always present (zeroed when there is no reward) so clients can read
+// them unconditionally; only the two timestamps go null. remaining_days/hours/minutes
+// are a non-overlapping breakdown meant to be displayed together, unlike the legacy
+// days_left/hours_left/minutes_left, which are each a total of the whole remainder
+// and are kept only so already-published apps keep working.
+func rewardStatusFields(u *models.User, now time.Time) fiber.Map {
+	m := fiber.Map{
+		"reward_active":          false,
+		"reward_expires_at":      nil,
+		"reward_expires_at_unix": nil,
+		"remaining_seconds":      int64(0),
+		"remaining_days":         0,
+		"remaining_hours":        0,
+		"remaining_minutes":      0,
+		"days_left":              0,
+		"hours_left":             0,
+		"minutes_left":           0,
+	}
+	if u.RewardExpiresAt == nil {
+		return m
+	}
+
+	expiresAt := *u.RewardExpiresAt
+	m["reward_expires_at"] = expiresAt
+	m["reward_expires_at_unix"] = expiresAt.Unix()
+	if !now.Before(expiresAt) {
+		return m
+	}
+
+	remaining := expiresAt.Sub(now)
+	secs := int64(remaining.Seconds())
+	m["reward_active"] = true
+	m["remaining_seconds"] = secs
+	m["remaining_days"] = int(secs / 86400)
+	m["remaining_hours"] = int((secs % 86400) / 3600)
+	m["remaining_minutes"] = int((secs % 3600) / 60)
+	m["days_left"] = int(remaining.Hours()/24) + 1
+	m["hours_left"] = int(remaining.Hours())
+	m["minutes_left"] = int(remaining.Minutes())
+	return m
+}
+
+// mergeInto copies src into dst. Used to fold the shared clock/reward blocks into
+// each endpoint's own response map.
+func mergeInto(dst, src fiber.Map) fiber.Map {
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
 // currentSettings loads the singleton AppSettings row (row 1), returning a zero
 // value (safe defaults) if it hasn't been seeded yet.
 func currentSettings() models.AppSettings {
 	var s models.AppSettings
 	database.DB.First(&s, 1)
 	return s
+}
+
+// referralDisabledResponse is what every /invite endpoint returns while the feature
+// is switched off: a plain 200 carrying referral_enabled=false, so the app can hide
+// the invite screen without having to special-case an error status.
+func referralDisabledResponse(c *fiber.Ctx) error {
+	resp := fiber.Map{
+		"referral_enabled": false,
+		"ok":               false,
+	}
+	mergeInto(resp, serverClockFields(time.Now()))
+	return c.JSON(resp)
 }
 
 // ApiInviteCode returns the caller's own shareable invite code, generating one on
@@ -251,6 +345,13 @@ func ApiInviteCode(c *fiber.Ctx) error {
 	token, err := parseClientToken(c)
 	if err != nil {
 		return err
+	}
+
+	settings := currentSettings()
+	// Checked before findOrCreateUserByToken so a disabled feature never mints an
+	// invite code (or any other state) as a side effect.
+	if !settings.ReferralEnabled {
+		return referralDisabledResponse(c)
 	}
 
 	user, err := findOrCreateUserByToken(token)
@@ -272,20 +373,34 @@ func ApiInviteCode(c *fiber.Ctx) error {
 		}
 	}
 
-	settings := currentSettings()
 	shareText := strings.ReplaceAll(settings.ReferralShareText, "{code}", *user.InviteCode)
 
-	return c.JSON(fiber.Map{
+	// One clock reading for the whole response, so the countdown and the server
+	// time it is relative to describe the same instant.
+	now := time.Now()
+	resp := fiber.Map{
+		"referral_enabled": true,
 		"invite_code":      *user.InviteCode,
 		"invites_count":    referralCount(user.ID),
-		"invites_required": settings.ReferralRequiredInvites,
 		"task_text":        settings.ReferralTaskText,
 		"share_text":       shareText,
-	})
+		// So the invite screen can advertise what each side gets before redeeming.
+		"instant_reward_enabled": settings.ReferralInstantRewardEnabled,
+		"inviter_reward_minutes": settings.ReferralInviterRewardMinutes,
+		"invitee_reward_minutes": settings.ReferralInviteeRewardMinutes,
+	}
+	// Carried here too so the invite screen can show the caller's own remaining
+	// reward without a second round trip.
+	mergeInto(resp, rewardStatusFields(user, now))
+	mergeInto(resp, serverClockFields(now))
+	return c.JSON(resp)
 }
 
-// ApiInviteRedeem links the caller to whoever owns the given invite code. Each user
-// may redeem exactly one code, ever, and cannot redeem their own.
+// ApiInviteRedeem links the caller to whoever owns the given invite code and, when
+// the instant reward is enabled, pays *both* sides ad-free time right away: the
+// redeemer once, and the code's owner for every friend they bring in (up to
+// ReferralMaxRewardedInvites). Each user may redeem exactly one code, ever, cannot
+// redeem their own, and cannot redeem the code of somebody they already referred.
 func ApiInviteRedeem(c *fiber.Ctx) error {
 	token, err := parseClientToken(c)
 	if err != nil {
@@ -300,6 +415,12 @@ func ApiInviteRedeem(c *fiber.Ctx) error {
 	code := strings.ToUpper(strings.TrimSpace(in.InviteCode))
 	if code == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "invite_code required")
+	}
+
+	settings := currentSettings()
+	// Checked before any lookup or write, so a disabled feature records nothing.
+	if !settings.ReferralEnabled {
+		return referralDisabledResponse(c)
 	}
 
 	user, err := findOrCreateUserByToken(token)
@@ -320,21 +441,73 @@ func ApiInviteRedeem(c *fiber.Ctx) error {
 	if referrer.ID == user.ID {
 		return fiber.NewError(fiber.StatusBadRequest, "cannot redeem your own invite code")
 	}
+	// A ↔ B: if the code's owner was themselves referred by this caller, refuse.
+	// Otherwise two people simply swap codes and each collects both sides' rewards.
+	if referrer.ReferredByUserID != nil && *referrer.ReferredByUserID == user.ID {
+		return fiber.NewError(fiber.StatusConflict, "cannot redeem the code of someone you already referred")
+	}
 
-	user.ReferredByUserID = &referrer.ID
-	if err := database.DB.Save(user).Error; err != nil {
+	var grantedMinutes int
+
+	// One transaction, with the referrer row locked: RewardedReferralCount gates a
+	// payout, so two friends redeeming at the same moment must not both read the
+	// same count and slip past the cap.
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		var locked models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&locked, referrer.ID).Error; err != nil {
+			return err
+		}
+
+		user.ReferredByUserID = &locked.ID
+
+		if settings.ReferralInstantRewardEnabled {
+			if settings.ReferralInviteeRewardMinutes > 0 {
+				grantedMinutes = settings.ReferralInviteeRewardMinutes
+				grantAdFreeReward(user, time.Duration(grantedMinutes)*time.Minute)
+			}
+
+			underCap := settings.ReferralMaxRewardedInvites == 0 ||
+				locked.RewardedReferralCount < settings.ReferralMaxRewardedInvites
+			if settings.ReferralInviterRewardMinutes > 0 && underCap {
+				grantAdFreeReward(&locked, time.Duration(settings.ReferralInviterRewardMinutes)*time.Minute)
+				locked.RewardedReferralCount++
+				if err := tx.Save(&locked).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		return tx.Save(user).Error
+	})
+	if err != nil {
 		return fiber.ErrInternalServerError
 	}
-	return c.JSON(fiber.Map{"ok": true})
+
+	now := time.Now()
+	resp := fiber.Map{
+		"referral_enabled": true,
+		"ok":               true,
+		// What this redemption just added, alongside the total window below.
+		"reward_granted_minutes": grantedMinutes,
+		"reward_granted_seconds": grantedMinutes * 60,
+	}
+	mergeInto(resp, rewardStatusFields(user, now))
+	mergeInto(resp, serverClockFields(now))
+	return c.JSON(resp)
 }
 
-// ApiInviteRewardStatus reports whether the caller has reached the admin-configured
-// referral threshold and, if so, whether their reward window is still active. The
-// reward timer starts the first time this endpoint sees them past the threshold.
+// ApiInviteRewardStatus reports how much ad-free time the caller has left. Purely a
+// read: rewards are granted at redemption time, so polling this never changes state.
 func ApiInviteRewardStatus(c *fiber.Ctx) error {
 	token, err := parseClientToken(c)
 	if err != nil {
 		return err
+	}
+
+	settings := currentSettings()
+	if !settings.ReferralEnabled {
+		return referralDisabledResponse(c)
 	}
 
 	user, err := findOrCreateUserByToken(token)
@@ -345,35 +518,14 @@ func ApiInviteRewardStatus(c *fiber.Ctx) error {
 		return fiber.ErrUnauthorized
 	}
 
-	settings := currentSettings()
-	count := referralCount(user.ID)
-	eligible := count >= int64(settings.ReferralRequiredInvites)
-
-	if eligible && user.RewardActivatedAt == nil {
-		now := time.Now()
-		user.RewardActivatedAt = &now
-		if err := database.DB.Save(user).Error; err != nil {
-			return fiber.ErrInternalServerError
-		}
-	}
-
+	now := time.Now()
 	resp := fiber.Map{
-		"eligible":         eligible,
-		"invites_count":    count,
-		"invites_required": settings.ReferralRequiredInvites,
-		"reward_active":    false,
+		"referral_enabled":        true,
+		"invites_count":           referralCount(user.ID),
+		"rewarded_referral_count": user.RewardedReferralCount,
 	}
-	if user.RewardActivatedAt != nil {
-		expiresAt := user.RewardActivatedAt.AddDate(0, 0, settings.ReferralRewardDays)
-		active := time.Now().Before(expiresAt)
-		resp["reward_active"] = active
-		resp["reward_expires_at"] = expiresAt
-		daysLeft := 0
-		if active {
-			daysLeft = int(time.Until(expiresAt).Hours()/24) + 1
-		}
-		resp["days_left"] = daysLeft
-	}
+	mergeInto(resp, rewardStatusFields(user, now))
+	mergeInto(resp, serverClockFields(now))
 	return c.JSON(resp)
 }
 
@@ -402,8 +554,10 @@ type ConfResponse struct {
 	AdsList   []models.V2RayNode `json:"ads_list"`
 }
 
-// ApiSplashConf returns nodes per request: lists for ads=false and ads=true.
-// It leases each node to the requester for 30 minutes when possible.
+// ApiSplashConf returns AppSettings.SplashConfCount nodes per request: one ads
+// node plus the rest non-ads, as separate lists. When
+// AppSettings.SplashDiverseServers is on, the non-ads picks are spread across
+// distinct node addresses rather than drawn uniformly at random.
 func ApiSplashConf(c *fiber.Ctx) error {
 	var in ConfRequest
 	_ = c.BodyParser(&in)
@@ -420,7 +574,13 @@ func ApiSplashConf(c *fiber.Ctx) error {
 	}
 
 	noAdsCount := count - 1
-	noAdsList, err := findOrAssignNodes(reqKey, false, noAdsCount, now)
+	var noAdsList []models.V2RayNode
+	var err error
+	if s.SplashDiverseServers {
+		noAdsList, err = findDiverseNoAdsNodes(noAdsCount)
+	} else {
+		noAdsList, err = findOrAssignNodes(reqKey, false, noAdsCount, now)
+	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "no non-ads nodes available")
 	}
@@ -454,6 +614,43 @@ func findOrAssignNodes(reqKey string, ads bool, count int, now time.Time) ([]mod
 	var nodes []models.V2RayNode
 	if err := database.DB.Where("is_active = ? AND ads = ?", true, ads).
 		Order("RANDOM()").Limit(count).Find(&nodes).Error; err != nil {
+		return nil, err
+	}
+	if len(nodes) == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return nodes, nil
+}
+
+// diverseNoAdsSQL picks non-ads nodes round-robin across distinct addresses.
+// ROW_NUMBER numbers each address's nodes in random order, so the outer ORDER BY
+// emits round 1 first (one random node per address, in random address order),
+// then round 2, and so on. With at least `count` distinct addresses every row
+// returned comes from a different server; with fewer it degrades gracefully and
+// still returns `count` nodes, balanced across whatever addresses exist.
+//
+// The columns are listed explicitly because the inner SELECT * also exposes rn.
+const diverseNoAdsSQL = `
+SELECT id, created_at, updated_at, name, address, port, protocol, tags, ads,
+       country_code, country_flag, is_active, capacity, raw_link
+FROM (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY address ORDER BY random()) AS rn
+    FROM v2_ray_nodes
+    WHERE is_active = true AND ads = false
+) ranked
+ORDER BY rn, random()
+LIMIT ?`
+
+// findDiverseNoAdsNodes is the AppSettings.SplashDiverseServers variant of
+// findOrAssignNodes for the ads = false case: same contract, but it spreads the
+// picks over distinct node addresses instead of drawing rows uniformly at
+// random. Ads nodes deliberately keep using findOrAssignNodes.
+func findDiverseNoAdsNodes(count int) ([]models.V2RayNode, error) {
+	if count <= 0 {
+		return []models.V2RayNode{}, nil
+	}
+	var nodes []models.V2RayNode
+	if err := database.DB.Raw(diverseNoAdsSQL, count).Scan(&nodes).Error; err != nil {
 		return nil, err
 	}
 	if len(nodes) == 0 {
@@ -606,6 +803,7 @@ func ApiSettings(c *fiber.Ctx) error {
 			ConnectionTimer:         1000,
 			CurrentVersionCode:      4000011,
 			WheelEnabled:            true,
+			ReferralEnabled:         false,
 		}
 	}
 	return c.JSON(fiber.Map{
@@ -629,6 +827,8 @@ func ApiSettings(c *fiber.Ctx) error {
 		"connection_timer":       s.ConnectionTimer,
 		"current_version_code":   s.CurrentVersionCode,
 		"wheel_enabled":          s.WheelEnabled,
+		// So the app can hide the invite menu without calling an /invite endpoint.
+		"referral_enabled": s.ReferralEnabled,
 	})
 }
 

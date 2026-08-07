@@ -5,19 +5,26 @@
   </div>
 </div>
 
+{{ if not .settings.ReferralEnabled }}
+<div role="alert" class="alert alert-warning mb-4">
+  <span>دعوت از دوست در حال حاضر <b>غیرفعال</b> است — اپ بخش دعوت را نشان نمی‌دهد و هیچ کد یا جایزه‌ای صادر نمی‌شود.</span>
+</div>
+{{ end }}
+
 <div class="card bg-base-100 shadow mb-4">
   <div class="card-body">
-    <h2 class="card-title">تنظیمات تسک دعوت</h2>
-    <p class="text-xs opacity-60 mb-2">این تنظیمات مشخص می‌کنند برای گرفتن جایزه (بدون تبلیغ) کاربر باید چند نفر دعوت کند و جایزه چند روز فعال بماند.</p>
+    <h2 class="card-title">تنظیمات دعوت و جایزه</h2>
     <form method="post" action="/admin/invites/task-settings" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <label class="form-control">
-        <div class="label"><span class="label-text">حد نصاب تعداد دعوت</span></div>
-        <input type="number" min="1" class="input input-bordered" name="referral_required_invites" value="{{ .settings.ReferralRequiredInvites }}" />
+      <label class="label cursor-pointer justify-start gap-3 md:col-span-2">
+        <input type="checkbox" class="toggle toggle-primary" name="referral_enabled" {{ if .settings.ReferralEnabled }}checked{{ end }} />
+        <span class="label-text font-bold">دعوت از دوست فعال باشد</span>
       </label>
-      <label class="form-control">
-        <div class="label"><span class="label-text">تعداد روز بدون تبلیغ (جایزه)</span></div>
-        <input type="number" min="1" class="input input-bordered" name="referral_reward_days" value="{{ .settings.ReferralRewardDays }}" />
-      </label>
+      <p class="text-xs opacity-60 md:col-span-2 -mt-2">
+        وقتی خاموش باشد، اپ کل بخش دعوت را مخفی می‌کند: کد دعوتی ساخته نمی‌شود و هیچ جایزه‌ای داده نمی‌شود.
+      </p>
+
+      <div class="divider md:col-span-2 my-0"></div>
+
       <label class="form-control md:col-span-2">
         <div class="label"><span class="label-text">متن تسک (برای نمایش به کاربر)</span></div>
         <textarea class="textarea textarea-bordered" name="referral_task_text" rows="2">{{ .settings.ReferralTaskText }}</textarea>
@@ -29,6 +36,49 @@
         </div>
         <textarea class="textarea textarea-bordered" name="referral_share_text" rows="2">{{ .settings.ReferralShareText }}</textarea>
       </label>
+      <div class="divider md:col-span-2 mb-0"></div>
+
+      <div class="md:col-span-2">
+        <h3 class="font-bold">جایزه‌ی آنی دعوت (دوطرفه)</h3>
+        <p class="text-xs opacity-60 mt-1">
+          به‌محض اینکه کسی کد دعوت را وارد کند، همان لحظه هر دو طرف جایزه‌ی بدون تبلیغ می‌گیرند.
+          مدت هر طرف را جداگانه بر حسب روز و ساعت تنظیم کنید (هر دو با هم جمع می‌شوند؛ ۰ یعنی به آن طرف جایزه‌ای داده نشود).
+        </p>
+      </div>
+
+      <label class="label cursor-pointer justify-start gap-3 md:col-span-2">
+        <input type="checkbox" class="toggle toggle-primary" name="referral_instant_reward_enabled" {{ if .settings.ReferralInstantRewardEnabled }}checked{{ end }} />
+        <span class="label-text">جایزه‌ی آنی دعوت فعال باشد</span>
+      </label>
+
+      <div class="form-control">
+        <div class="label"><span class="label-text">جایزه‌ی دعوت‌کننده (صاحب کد) — به ازای هر نفر</span></div>
+        <div class="join">
+          <input type="number" min="0" class="input input-bordered join-item w-full" name="referral_inviter_reward_days" value="{{ .inviterDays }}" />
+          <span class="btn btn-sm join-item no-animation pointer-events-none">روز</span>
+          <input type="number" min="0" max="23" class="input input-bordered join-item w-full" name="referral_inviter_reward_hours" value="{{ .inviterHours }}" />
+          <span class="btn btn-sm join-item no-animation pointer-events-none">ساعت</span>
+        </div>
+      </div>
+
+      <div class="form-control">
+        <div class="label"><span class="label-text">جایزه‌ی دعوت‌شونده (کسی که کد را وارد می‌کند)</span></div>
+        <div class="join">
+          <input type="number" min="0" class="input input-bordered join-item w-full" name="referral_invitee_reward_days" value="{{ .inviteeDays }}" />
+          <span class="btn btn-sm join-item no-animation pointer-events-none">روز</span>
+          <input type="number" min="0" max="23" class="input input-bordered join-item w-full" name="referral_invitee_reward_hours" value="{{ .inviteeHours }}" />
+          <span class="btn btn-sm join-item no-animation pointer-events-none">ساعت</span>
+        </div>
+      </div>
+
+      <label class="form-control md:col-span-2">
+        <div class="label">
+          <span class="label-text">حداکثر تعداد دعوت جایزه‌دار برای هر کاربر</span>
+          <span class="label-text-alt opacity-60">۰ = نامحدود</span>
+        </div>
+        <input type="number" min="0" class="input input-bordered" name="referral_max_rewarded_invites" value="{{ .settings.ReferralMaxRewardedInvites }}" />
+      </label>
+
       <div class="md:col-span-2">
         <button type="submit" class="btn btn-primary btn-sm">ذخیره تنظیمات</button>
       </div>

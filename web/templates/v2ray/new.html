@@ -1,6 +1,7 @@
 <div class="card bg-base-100 shadow">
   <form class="card-body" method="post">
     <h2 class="card-title">افزودن V2Ray</h2>
+    <input type="hidden" name="next" value="{{ .next }}" />
 
     <div class="tabs">
       <a class="tab tab-bordered tab-active" onclick="switchMode('link')">لینک</a>
@@ -67,6 +68,7 @@
     </label>
     <div class="card-actions justify-end">
       <button class="btn btn-primary" type="submit">ذخیره</button>
+      <a class="btn" href="{{ .next }}">بازگشت</a>
     </div>
   </form>
 </div>

@@ -35,6 +35,11 @@ func main() {
 	engine.AddFunc("fmtDate", func(t *time.Time, system string) string {
 		return calendar.FormatDateTime(t, calendar.System(system))
 	})
+	// fmtTime is fmtDate for non-nullable timestamps such as gorm's CreatedAt,
+	// which templates cannot pass to fmtDate's *time.Time parameter.
+	engine.AddFunc("fmtTime", func(t time.Time, system string) string {
+		return calendar.FormatDateTime(&t, calendar.System(system))
+	})
 
 	app := fiber.New(fiber.Config{
 		Views:        engine,

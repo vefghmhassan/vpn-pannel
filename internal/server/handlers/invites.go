@@ -55,17 +55,58 @@ func InvitesPage(c *fiber.Ctx) error {
 		_ = database.DB.FirstOrCreate(&settings, models.AppSettings{ID: 1}).Error
 	}
 
+	inviterDays, inviterHours := splitMinutes(settings.ReferralInviterRewardMinutes)
+	inviteeDays, inviteeHours := splitMinutes(settings.ReferralInviteeRewardMinutes)
+
 	return c.Render("invites/index", fiber.Map{
-		"title":    "دعوت‌ها",
-		"rows":     rows,
-		"settings": settings,
-		"calendar": string(calendarFromRequest(c)),
+		"title":        "دعوت‌ها",
+		"rows":         rows,
+		"settings":     settings,
+		"inviterDays":  inviterDays,
+		"inviterHours": inviterHours,
+		"inviteeDays":  inviteeDays,
+		"inviteeHours": inviteeHours,
+		"calendar":     string(calendarFromRequest(c)),
 	})
 }
 
-// ReferralTaskSettingsUpdate updates the admin-configurable referral reward task:
-// how many invites are required, how many ad-free days the reward grants, and the
-// task/share text shown to users. Follows the same singleton-row pattern as settings.go.
+// minutesPerDay/minutesPerHour convert between the stored reward duration (minutes)
+// and the day+hour pair the admin form edits.
+const (
+	minutesPerDay  = 24 * 60
+	minutesPerHour = 60
+)
+
+// splitMinutes breaks a stored duration into whole days plus leftover hours, since
+// Go templates have no integer division to do it at render time.
+func splitMinutes(total int) (days, hours int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	return total / minutesPerDay, (total % minutesPerDay) / minutesPerHour
+}
+
+// formDuration reads a "<prefix>_days"/"<prefix>_hours" input pair and combines them
+// into minutes. ok is false when neither field was submitted, so the caller can leave
+// the stored value alone rather than zeroing it.
+func formDuration(c *fiber.Ctx, prefix string) (minutes int, ok bool) {
+	dayVal, hourVal := c.FormValue(prefix+"_days"), c.FormValue(prefix+"_hours")
+	if dayVal == "" && hourVal == "" {
+		return 0, false
+	}
+	if n, err := strconv.Atoi(dayVal); err == nil && n > 0 {
+		minutes += n * minutesPerDay
+	}
+	if n, err := strconv.Atoi(hourVal); err == nil && n > 0 {
+		minutes += n * minutesPerHour
+	}
+	return minutes, true
+}
+
+// ReferralTaskSettingsUpdate updates the admin-configurable referral settings: the
+// master on/off switch, the per-side instant reward durations, the rewarded-invite
+// cap, and the text shown to users. Follows the same singleton-row pattern as
+// settings.go — an absent checkbox means false.
 func ReferralTaskSettingsUpdate(c *fiber.Ctx) error {
 	var settings models.AppSettings
 	if err := database.DB.First(&settings, 1).Error; err != nil {
@@ -73,21 +114,28 @@ func ReferralTaskSettingsUpdate(c *fiber.Ctx) error {
 		_ = database.DB.Create(&settings).Error
 	}
 
-	if v := c.FormValue("referral_required_invites"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			settings.ReferralRequiredInvites = n
-		}
-	}
-	if v := c.FormValue("referral_reward_days"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			settings.ReferralRewardDays = n
-		}
-	}
+	settings.ReferralEnabled = c.FormValue("referral_enabled") != ""
+
 	if v := c.FormValue("referral_task_text"); v != "" {
 		settings.ReferralTaskText = v
 	}
 	if v := c.FormValue("referral_share_text"); v != "" {
 		settings.ReferralShareText = v
+	}
+
+	// 0 is meaningful for all of these (no reward for that side / unlimited cap),
+	// so they accept it rather than treating it as "unset".
+	settings.ReferralInstantRewardEnabled = c.FormValue("referral_instant_reward_enabled") != ""
+	if m, ok := formDuration(c, "referral_inviter_reward"); ok {
+		settings.ReferralInviterRewardMinutes = m
+	}
+	if m, ok := formDuration(c, "referral_invitee_reward"); ok {
+		settings.ReferralInviteeRewardMinutes = m
+	}
+	if v := c.FormValue("referral_max_rewarded_invites"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			settings.ReferralMaxRewardedInvites = n
+		}
 	}
 
 	if err := database.DB.Save(&settings).Error; err != nil {
@@ -136,17 +184,17 @@ func InviteDetailPage(c *fiber.Ctx) error {
 	})
 }
 
-// taskProgressRow is one row of the invite-task stats table.
+// taskProgressRow is one row of the invite stats table.
 type taskProgressRow struct {
 	User          models.User
 	InvitesCount  int64
-	Reached       bool
 	RewardActive  bool
 	RewardExpires *time.Time
+	RewardedCount int
 }
 
-// InviteTaskStatsPage shows how many users have completed the referral reward task
-// (invited enough friends) and how many currently have an active ad-free reward.
+// InviteTaskStatsPage shows, per referrer, how many people they invited, how many of
+// those actually paid out, and whether their ad-free reward is currently running.
 func InviteTaskStatsPage(c *fiber.Ctx) error {
 	var settings models.AppSettings
 	if err := database.DB.First(&settings, 1).Error; err != nil {
@@ -160,40 +208,39 @@ func InviteTaskStatsPage(c *fiber.Ctx) error {
 
 	now := time.Now()
 	rows := make([]taskProgressRow, 0, len(users))
-	reachedCount, activeCount := 0, 0
+	activeCount := 0
 	for _, u := range users {
-		cnt := counts[u.ID]
-		reached := cnt >= int64(settings.ReferralRequiredInvites)
 		var active bool
-		var expires *time.Time
-		if u.RewardActivatedAt != nil {
-			exp := u.RewardActivatedAt.AddDate(0, 0, settings.ReferralRewardDays)
-			expires = &exp
-			active = now.Before(exp)
-		}
-		if reached {
-			reachedCount++
+		expires := u.RewardExpiresAt
+		if expires != nil {
+			active = now.Before(*expires)
 		}
 		if active {
 			activeCount++
 		}
 		rows = append(rows, taskProgressRow{
 			User:          u,
-			InvitesCount:  cnt,
-			Reached:       reached,
+			InvitesCount:  counts[u.ID],
 			RewardActive:  active,
 			RewardExpires: expires,
+			RewardedCount: u.RewardedReferralCount,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].InvitesCount > rows[j].InvitesCount })
 
+	inviterDays, inviterHours := splitMinutes(settings.ReferralInviterRewardMinutes)
+	inviteeDays, inviteeHours := splitMinutes(settings.ReferralInviteeRewardMinutes)
+
 	return c.Render("invite_stats/index", fiber.Map{
-		"title":          "آمار تسک دعوت",
+		"title":          "آمار دعوت‌ها",
 		"rows":           rows,
 		"settings":       settings,
 		"totalReferrers": len(users),
-		"reachedCount":   reachedCount,
 		"activeCount":    activeCount,
+		"inviterDays":    inviterDays,
+		"inviterHours":   inviterHours,
+		"inviteeDays":    inviteeDays,
+		"inviteeHours":   inviteeHours,
 		"calendar":       string(calendarFromRequest(c)),
 	})
 }

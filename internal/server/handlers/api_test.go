@@ -2,14 +2,26 @@ package handlers_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+
+	"vpnpannel/internal/config"
 	"vpnpannel/internal/database"
 	"vpnpannel/internal/models"
 	"vpnpannel/internal/testutil"
 	"vpnpannel/internal/testutil/apptest"
 )
+
+// uniqueInviteCode builds a stored invite code that /invite/redeem can actually find.
+// The handler upper-cases whatever the client sends before looking it up, so a code
+// stored with lower-case characters — which testutil.UniqueName produces, since it
+// ends in a base36 timestamp — would never match.
+func uniqueInviteCode(prefix string) string {
+	return strings.ToUpper(testutil.UniqueName(prefix)[:6])
+}
 
 func bearer(token string) func(*http.Request) {
 	return func(r *http.Request) {
@@ -184,6 +196,7 @@ func TestApiLastConnection_InactiveUserRejected(t *testing.T) {
 func TestApiInviteCode_IdempotentAndSubstitutesShareText(t *testing.T) {
 	app := apptest.New(t)
 	database.DB.Model(&models.AppSettings{}).Where("id = ?", 1).Updates(map[string]interface{}{
+		"referral_enabled":    true,
 		"referral_task_text":  "invite some friends",
 		"referral_share_text": "use my code {code} to join",
 	})
@@ -194,11 +207,10 @@ func TestApiInviteCode_IdempotentAndSubstitutesShareText(t *testing.T) {
 		t.Fatalf("expected 200, got %d", resp1.StatusCode)
 	}
 	var out1 struct {
-		InviteCode      string `json:"invite_code"`
-		InvitesCount    int64  `json:"invites_count"`
-		InvitesRequired int    `json:"invites_required"`
-		TaskText        string `json:"task_text"`
-		ShareText       string `json:"share_text"`
+		InviteCode   string `json:"invite_code"`
+		InvitesCount int64  `json:"invites_count"`
+		TaskText     string `json:"task_text"`
+		ShareText    string `json:"share_text"`
 	}
 	testutil.DecodeJSON(t, resp1, &out1)
 	if out1.InviteCode == "" {
@@ -227,6 +239,7 @@ func TestApiInviteCode_IdempotentAndSubstitutesShareText(t *testing.T) {
 
 func TestApiInviteRedeem_Success(t *testing.T) {
 	app := apptest.New(t)
+	setReferralEnabled(true)
 	code := testutil.UniqueName("CODE")[:6]
 	referrer := testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &code })
 
@@ -245,8 +258,543 @@ func TestApiInviteRedeem_Success(t *testing.T) {
 	}
 }
 
+// setInstantReward turns the referral feature on and configures the two-sided
+// instant reward. Uses a map update so the boolean flags are written even when
+// false (GORM skips zero values on struct updates).
+//
+// The master switch defaults to off, so every invite test has to enable it — doing
+// it here keeps that out of each test body.
+func setInstantReward(enabled bool, inviterMinutes, inviteeMinutes, maxRewarded int) {
+	database.DB.Model(&models.AppSettings{}).Where("id = ?", 1).Updates(map[string]interface{}{
+		"referral_enabled":                true,
+		"referral_instant_reward_enabled": enabled,
+		"referral_inviter_reward_minutes": inviterMinutes,
+		"referral_invitee_reward_minutes": inviteeMinutes,
+		"referral_max_rewarded_invites":   maxRewarded,
+	})
+}
+
+// setReferralEnabled flips only the master switch.
+func setReferralEnabled(enabled bool) {
+	database.DB.Model(&models.AppSettings{}).Where("id = ?", 1).
+		Update("referral_enabled", enabled)
+}
+
+func userByToken(t *testing.T, token string) models.User {
+	t.Helper()
+	var u models.User
+	if err := database.DB.Where("client_token = ?", token).First(&u).Error; err != nil {
+		t.Fatalf("expected a user for token %q: %v", token, err)
+	}
+	return u
+}
+
+// rewardWindow mirrors the shared reward/clock block that every /invite endpoint
+// returns. Pointers on the two timestamps so tests can tell null from absent.
+type rewardWindow struct {
+	RewardActive        bool    `json:"reward_active"`
+	RewardExpiresAt     *string `json:"reward_expires_at"`
+	RewardExpiresAtUnix *int64  `json:"reward_expires_at_unix"`
+	RemainingSeconds    int64   `json:"remaining_seconds"`
+	RemainingDays       int     `json:"remaining_days"`
+	RemainingHours      int     `json:"remaining_hours"`
+	RemainingMinutes    int     `json:"remaining_minutes"`
+	DaysLeft            int     `json:"days_left"`
+	HoursLeft           int     `json:"hours_left"`
+	MinutesLeft         int     `json:"minutes_left"`
+
+	ServerTime             string `json:"server_time"`
+	ServerTimeUnix         int64  `json:"server_time_unix"`
+	ServerTimezone         string `json:"server_timezone"`
+	ServerUTCOffsetSeconds int    `json:"server_utc_offset_seconds"`
+}
+
+// Regression: an admin who sets a 3-hour reward must get exactly 3 hours. The old
+// threshold task ("N invites unlocks M days") ran off the very same referral and
+// silently added a whole day on top, so a 3h setting produced 1d 3h.
+func TestApiInviteRedeem_HourlyRewardIsNotInflated(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(true, 3*60, 0, 0) // inviter 3h, invitee nothing
+
+	code := uniqueInviteCode("HI")
+	inviterToken := testutil.UniqueName("hourly-inviter")
+	referrer := testutil.CreateUser(t, func(u *models.User) {
+		u.InviteCode = &code
+		u.ClientToken = &inviterToken
+	})
+
+	friendToken := testutil.UniqueName("hourly-friend")
+	testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{
+		"token": friendToken, "invite_code": code,
+	}, nil)
+
+	var updated models.User
+	database.DB.First(&updated, referrer.ID)
+	if updated.RewardExpiresAt == nil {
+		t.Fatalf("expected the inviter to receive a reward")
+	}
+	if d := time.Until(*updated.RewardExpiresAt); d < 2*time.Hour+55*time.Minute || d > 3*time.Hour {
+		t.Fatalf("expected exactly ~3h, got %v (a whole extra day means the threshold task is back)", d)
+	}
+
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/reward-status", map[string]string{"token": inviterToken}, nil)
+	var w rewardWindow
+	testutil.DecodeJSON(t, resp, &w)
+	if w.RemainingDays != 0 || w.RemainingHours != 2 {
+		t.Errorf("expected a 3h reward to read as 0d 2h 59m, got %dd %dh %dm",
+			w.RemainingDays, w.RemainingHours, w.RemainingMinutes)
+	}
+	if w.RemainingSeconds < 10500 || w.RemainingSeconds > 10800 {
+		t.Errorf("expected remaining_seconds just under 10800, got %d", w.RemainingSeconds)
+	}
+}
+
+// Two people swapping codes would otherwise each collect both sides' rewards.
+func TestApiInviteRedeem_RejectsMutualReferral(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(true, 6*60, 6*60, 0)
+
+	codeA := uniqueInviteCode("MA")
+	codeB := uniqueInviteCode("MB")
+	tokenA := testutil.UniqueName("mutual-a")
+	tokenB := testutil.UniqueName("mutual-b")
+	userA := testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &codeA; u.ClientToken = &tokenA })
+	userB := testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &codeB; u.ClientToken = &tokenB })
+
+	// B redeems A's code — fine.
+	if resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{
+		"token": tokenB, "invite_code": codeA,
+	}, nil); resp.StatusCode != 200 {
+		t.Fatalf("expected the first redeem to succeed, got %d", resp.StatusCode)
+	}
+
+	var aBefore, bBefore models.User
+	database.DB.First(&aBefore, userA.ID)
+	database.DB.First(&bBefore, userB.ID)
+
+	// A now tries to redeem B's code — refused.
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{
+		"token": tokenA, "invite_code": codeB,
+	}, nil)
+	if resp.StatusCode != 409 {
+		t.Fatalf("expected 409 for a mutual referral, got %d", resp.StatusCode)
+	}
+
+	var aAfter, bAfter models.User
+	database.DB.First(&aAfter, userA.ID)
+	database.DB.First(&bAfter, userB.ID)
+	if aAfter.ReferredByUserID != nil {
+		t.Errorf("expected the refused redeem not to record a referral link")
+	}
+	if !aAfter.RewardExpiresAt.Equal(*aBefore.RewardExpiresAt) {
+		t.Errorf("expected A's reward window to be untouched by the refused redeem")
+	}
+	if !bAfter.RewardExpiresAt.Equal(*bBefore.RewardExpiresAt) {
+		t.Errorf("expected B's reward window to be untouched by the refused redeem")
+	}
+}
+
+// While the feature is off, no codes and no rewards. (That this is the *shipped*
+// default is enforced by the column default in the model, not here — a shared dev
+// database will already have whatever the admin last saved.)
+func TestInviteEndpoints_Disabled(t *testing.T) {
+	app := apptest.New(t)
+	setReferralEnabled(false)
+
+	token := testutil.UniqueName("disabled-token")
+	for _, path := range []string{"/api/v1/invite/code", "/api/v1/invite/reward-status"} {
+		resp := testutil.DoJSON(t, app, "POST", path, map[string]string{"token": token}, nil)
+		if resp.StatusCode != 200 {
+			t.Fatalf("%s: expected 200 while disabled, got %d", path, resp.StatusCode)
+		}
+		var out map[string]interface{}
+		testutil.DecodeJSON(t, resp, &out)
+		if enabled, _ := out["referral_enabled"].(bool); enabled {
+			t.Errorf("%s: expected referral_enabled=false", path)
+		}
+		if _, ok := out["invite_code"]; ok {
+			t.Errorf("%s: expected no invite_code while disabled", path)
+		}
+		// The clock block still ships so the client has a trusted time source.
+		if _, ok := out["server_time_unix"]; !ok {
+			t.Errorf("%s: expected the server clock even while disabled", path)
+		}
+	}
+
+	// Nothing may be persisted: no user row should have gained an invite code.
+	var codeCount int64
+	database.DB.Model(&models.User{}).Where("client_token = ? AND invite_code IS NOT NULL", token).Count(&codeCount)
+	if codeCount != 0 {
+		t.Errorf("expected no invite code to be minted while the feature is disabled")
+	}
+}
+
+func TestApiInviteRedeem_DisabledGrantsNothing(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(true, 6*60, 6*60, 0)
+	setReferralEnabled(false) // configured, but switched off
+
+	code := uniqueInviteCode("DS")
+	referrer := testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &code })
+
+	token := testutil.UniqueName("disabled-redeem")
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{
+		"token": token, "invite_code": code,
+	}, nil)
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200 while disabled, got %d", resp.StatusCode)
+	}
+	var out map[string]interface{}
+	testutil.DecodeJSON(t, resp, &out)
+	if enabled, _ := out["referral_enabled"].(bool); enabled {
+		t.Errorf("expected referral_enabled=false")
+	}
+
+	var updated models.User
+	database.DB.First(&updated, referrer.ID)
+	if updated.RewardExpiresAt != nil || updated.RewardedReferralCount != 0 {
+		t.Errorf("expected the code owner to be untouched while disabled, got %+v / %d",
+			updated.RewardExpiresAt, updated.RewardedReferralCount)
+	}
+	var redeemer models.User
+	if err := database.DB.Where("client_token = ?", token).First(&redeemer).Error; err == nil {
+		if redeemer.ReferredByUserID != nil || redeemer.RewardExpiresAt != nil {
+			t.Errorf("expected no referral link or reward for the redeemer while disabled")
+		}
+	}
+}
+
+func TestApiSettings_ExposesReferralEnabled(t *testing.T) {
+	app := apptest.New(t)
+	setReferralEnabled(true)
+
+	resp := testutil.DoJSON(t, app, "GET", "/api/v1/settings", nil, nil)
+	var out map[string]interface{}
+	testutil.DecodeJSON(t, resp, &out)
+	if enabled, ok := out["referral_enabled"].(bool); !ok || !enabled {
+		t.Fatalf("expected referral_enabled=true in /api/v1/settings, got %v", out["referral_enabled"])
+	}
+
+	setReferralEnabled(false)
+	resp2 := testutil.DoJSON(t, app, "GET", "/api/v1/settings", nil, nil)
+	testutil.DecodeJSON(t, resp2, &out)
+	if enabled, _ := out["referral_enabled"].(bool); enabled {
+		t.Errorf("expected referral_enabled=false after switching it off")
+	}
+}
+
+// The breakdown fields must be displayable side by side ("1 day, 6 hours, 0 min"),
+// unlike the legacy *_left fields which are each a total of the whole remainder.
+func TestRewardWindow_BreakdownDoesNotOverlap(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(true, 0, 30*60, 0) // redeemer gets 30h = 1d 6h
+
+	code := uniqueInviteCode("BD")
+	testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &code })
+
+	token := testutil.UniqueName("breakdown")
+	testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{"token": token, "invite_code": code}, nil)
+
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/reward-status", map[string]string{"token": token}, nil)
+	var w rewardWindow
+	testutil.DecodeJSON(t, resp, &w)
+
+	if w.RemainingDays != 1 || w.RemainingHours != 5 || w.RemainingMinutes != 59 {
+		t.Errorf("expected a 30h reward to break down to 1d 5h 59m, got %dd %dh %dm",
+			w.RemainingDays, w.RemainingHours, w.RemainingMinutes)
+	}
+	if w.RemainingSeconds < 30*3600-5 || w.RemainingSeconds > 30*3600 {
+		t.Errorf("expected remaining_seconds just under 108000, got %d", w.RemainingSeconds)
+	}
+	// The breakdown must reconstruct the total.
+	if got := int64(w.RemainingDays*86400 + w.RemainingHours*3600 + w.RemainingMinutes*60); got > w.RemainingSeconds || w.RemainingSeconds-got >= 60 {
+		t.Errorf("breakdown %d s does not reconstruct remaining_seconds %d", got, w.RemainingSeconds)
+	}
+	// Legacy keys keep their old "each is a total" meaning.
+	if w.HoursLeft != 29 || w.DaysLeft != 2 {
+		t.Errorf("expected legacy totals hours_left=29 days_left=2, got %d and %d", w.HoursLeft, w.DaysLeft)
+	}
+}
+
+// Every invite endpoint must expose the same reward+clock block, so the app can
+// render the countdown from whichever call it already had to make.
+func TestInviteEndpoints_AllReturnRewardWindowAndServerClock(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(true, 0, 6*60, 0)
+
+	code := uniqueInviteCode("AL")
+	testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &code })
+	token := testutil.UniqueName("allthree")
+
+	before := time.Now()
+	cases := []struct {
+		path string
+		body map[string]string
+	}{
+		{"/api/v1/invite/redeem", map[string]string{"token": token, "invite_code": code}},
+		{"/api/v1/invite/reward-status", map[string]string{"token": token}},
+		{"/api/v1/invite/code", map[string]string{"token": token}},
+	}
+	for _, tc := range cases {
+		resp := testutil.DoJSON(t, app, "POST", tc.path, tc.body, nil)
+		if resp.StatusCode != 200 {
+			t.Fatalf("%s: expected 200, got %d", tc.path, resp.StatusCode)
+		}
+		var w rewardWindow
+		testutil.DecodeJSON(t, resp, &w)
+
+		if !w.RewardActive || w.RemainingSeconds <= 0 {
+			t.Errorf("%s: expected an active reward with time left, got %+v", tc.path, w)
+		}
+		if w.RewardExpiresAt == nil || w.RewardExpiresAtUnix == nil {
+			t.Fatalf("%s: expected both expiry representations, got %+v", tc.path, w)
+		}
+		// The unix field and the RFC3339 field must denote the same instant —
+		// this is what proves the offset is serialised correctly.
+		parsed, err := time.Parse(time.RFC3339Nano, *w.RewardExpiresAt)
+		if err != nil {
+			t.Fatalf("%s: reward_expires_at %q did not parse: %v", tc.path, *w.RewardExpiresAt, err)
+		}
+		if parsed.Unix() != *w.RewardExpiresAtUnix {
+			t.Errorf("%s: reward_expires_at (%d) and reward_expires_at_unix (%d) disagree",
+				tc.path, parsed.Unix(), *w.RewardExpiresAtUnix)
+		}
+		if w.ServerTimeUnix < before.Unix()-5 || w.ServerTimeUnix > time.Now().Unix()+5 {
+			t.Errorf("%s: server_time_unix %d is not close to now", tc.path, w.ServerTimeUnix)
+		}
+		if w.ServerTimezone == "" {
+			t.Errorf("%s: expected a server_timezone", tc.path)
+		}
+		if w.ServerTimezone != config.Current.Timezone {
+			t.Errorf("%s: expected server_timezone %q, got %q", tc.path, config.Current.Timezone, w.ServerTimezone)
+		}
+		// The reported offset must match what the timestamp itself encodes.
+		if _, wantOffset := parsed.Zone(); wantOffset != w.ServerUTCOffsetSeconds {
+			t.Errorf("%s: server_utc_offset_seconds=%d but the timestamp carries %d",
+				tc.path, w.ServerUTCOffsetSeconds, wantOffset)
+		}
+	}
+}
+
+// With no reward at all the counters must be present and zero — not missing — so
+// the client can read them unconditionally.
+func TestRewardWindow_ZeroedNotAbsentWhenNoReward(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(false, 0, 0, 0)
+
+	token := testutil.UniqueName("noreward")
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/code", map[string]string{"token": token}, nil)
+
+	var raw map[string]interface{}
+	testutil.DecodeJSON(t, resp, &raw)
+	for _, k := range []string{"reward_active", "remaining_seconds", "remaining_days", "remaining_hours",
+		"remaining_minutes", "days_left", "hours_left", "minutes_left",
+		"reward_expires_at", "reward_expires_at_unix", "server_time_unix", "server_timezone"} {
+		if _, ok := raw[k]; !ok {
+			t.Errorf("expected key %q to be present even with no reward", k)
+		}
+	}
+	if raw["reward_expires_at"] != nil || raw["reward_expires_at_unix"] != nil {
+		t.Errorf("expected both expiry fields to be null with no reward, got %v / %v",
+			raw["reward_expires_at"], raw["reward_expires_at_unix"])
+	}
+	for _, k := range []string{"remaining_seconds", "remaining_days", "days_left", "hours_left", "minutes_left"} {
+		if v, _ := raw[k].(float64); v != 0 {
+			t.Errorf("expected %q to be 0 with no reward, got %v", k, raw[k])
+		}
+	}
+	if active, _ := raw["reward_active"].(bool); active {
+		t.Errorf("expected reward_active=false with no reward")
+	}
+}
+
+func TestApiInviteRedeem_RewardsBothSides(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(true, 6*60, 24*60, 0) // inviter 6h, invitee 24h, no cap
+
+	code := uniqueInviteCode("BS")
+	referrerToken := testutil.UniqueName("inviter-token")
+	referrer := testutil.CreateUser(t, func(u *models.User) {
+		u.InviteCode = &code
+		u.ClientToken = &referrerToken
+	})
+
+	friendToken := testutil.UniqueName("friend-token")
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{
+		"token": friendToken, "invite_code": code,
+	}, nil)
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var out struct {
+		OK                   bool `json:"ok"`
+		RewardGrantedMinutes int  `json:"reward_granted_minutes"`
+		RewardActive         bool `json:"reward_active"`
+	}
+	testutil.DecodeJSON(t, resp, &out)
+	if !out.OK || out.RewardGrantedMinutes != 24*60 || !out.RewardActive {
+		t.Errorf("expected the redeemer to be told they got 1440 minutes and an active reward, got %+v", out)
+	}
+
+	now := time.Now()
+	friend := userByToken(t, friendToken)
+	if friend.RewardExpiresAt == nil {
+		t.Fatalf("expected the redeemer to receive a reward window")
+	}
+	if d := friend.RewardExpiresAt.Sub(now); d < 23*time.Hour || d > 25*time.Hour {
+		t.Errorf("expected the redeemer to get ~24h, got %v", d)
+	}
+
+	var updatedReferrer models.User
+	database.DB.First(&updatedReferrer, referrer.ID)
+	if updatedReferrer.RewardExpiresAt == nil {
+		t.Fatalf("expected the code owner to receive a reward window too")
+	}
+	if d := updatedReferrer.RewardExpiresAt.Sub(now); d < 5*time.Hour || d > 7*time.Hour {
+		t.Errorf("expected the code owner to get ~6h, got %v", d)
+	}
+	if updatedReferrer.RewardedReferralCount != 1 {
+		t.Errorf("expected RewardedReferralCount=1, got %d", updatedReferrer.RewardedReferralCount)
+	}
+}
+
+func TestApiInviteRedeem_InviterRewardStacksAcrossReferrals(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(true, 6*60, 0, 0) // inviter 6h each, invitee nothing
+
+	code := uniqueInviteCode("SK")
+	referrer := testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &code })
+
+	for _, tok := range []string{testutil.UniqueName("f1"), testutil.UniqueName("f2")} {
+		resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{
+			"token": tok, "invite_code": code,
+		}, nil)
+		if resp.StatusCode != 200 {
+			t.Fatalf("expected 200 redeeming with %q, got %d", tok, resp.StatusCode)
+		}
+	}
+
+	var updated models.User
+	database.DB.First(&updated, referrer.ID)
+	if updated.RewardExpiresAt == nil {
+		t.Fatalf("expected the code owner to have a reward window")
+	}
+	// Two 6h grants must add up to ~12h, not reset to 6h.
+	if d := time.Until(*updated.RewardExpiresAt); d < 11*time.Hour || d > 13*time.Hour {
+		t.Errorf("expected two 6h referrals to stack to ~12h, got %v", d)
+	}
+	if updated.RewardedReferralCount != 2 {
+		t.Errorf("expected RewardedReferralCount=2, got %d", updated.RewardedReferralCount)
+	}
+}
+
+func TestApiInviteRedeem_RespectsRewardedInvitesCap(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(true, 6*60, 24*60, 1) // cap: only the first referral pays the inviter
+
+	code := uniqueInviteCode("CP")
+	referrer := testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &code })
+
+	firstToken := testutil.UniqueName("cap-f1")
+	testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{"token": firstToken, "invite_code": code}, nil)
+
+	var afterFirst models.User
+	database.DB.First(&afterFirst, referrer.ID)
+	if afterFirst.RewardExpiresAt == nil {
+		t.Fatalf("expected the first referral to pay the inviter")
+	}
+	firstExpiry := *afterFirst.RewardExpiresAt
+
+	secondToken := testutil.UniqueName("cap-f2")
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{"token": secondToken, "invite_code": code}, nil)
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected the second redeem to still succeed, got %d", resp.StatusCode)
+	}
+
+	var afterSecond models.User
+	database.DB.First(&afterSecond, referrer.ID)
+	if afterSecond.RewardExpiresAt == nil {
+		t.Fatalf("expected the inviter to keep the reward earned before the cap")
+	}
+	if !afterSecond.RewardExpiresAt.Equal(firstExpiry) {
+		t.Errorf("expected the inviter's reward to be unchanged past the cap: before=%v after=%v", firstExpiry, *afterSecond.RewardExpiresAt)
+	}
+	if afterSecond.RewardedReferralCount != 1 {
+		t.Errorf("expected RewardedReferralCount to stay at the cap of 1, got %d", afterSecond.RewardedReferralCount)
+	}
+
+	// The capped inviter must not block the redeemer's own reward.
+	second := userByToken(t, secondToken)
+	if second.RewardExpiresAt == nil {
+		t.Errorf("expected the redeemer to still get their reward even though the inviter is capped")
+	}
+}
+
+func TestApiInviteRedeem_NoRewardWhenInstantRewardDisabled(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(false, 6*60, 24*60, 0)
+
+	code := uniqueInviteCode("OF")
+	referrer := testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &code })
+
+	friendToken := testutil.UniqueName("off-friend")
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{
+		"token": friendToken, "invite_code": code,
+	}, nil)
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected the redeem itself to succeed, got %d", resp.StatusCode)
+	}
+
+	friend := userByToken(t, friendToken)
+	if friend.ReferredByUserID == nil {
+		t.Errorf("expected the referral link to still be recorded when rewards are off")
+	}
+	if friend.RewardExpiresAt != nil {
+		t.Errorf("expected no reward for the redeemer, got %v", *friend.RewardExpiresAt)
+	}
+
+	var updated models.User
+	database.DB.First(&updated, referrer.ID)
+	if updated.RewardExpiresAt != nil {
+		t.Errorf("expected no reward for the code owner, got %v", *updated.RewardExpiresAt)
+	}
+}
+
+func TestApiInviteRewardStatus_ReportsHourlyReward(t *testing.T) {
+	app := apptest.New(t)
+	setInstantReward(true, 0, 6*60, 0) // redeemer gets 6h
+
+	code := uniqueInviteCode("HR")
+	testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &code })
+
+	friendToken := testutil.UniqueName("hourly-friend")
+	testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{"token": friendToken, "invite_code": code}, nil)
+
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/reward-status", map[string]string{"token": friendToken}, nil)
+	var status struct {
+		RewardActive bool `json:"reward_active"`
+		DaysLeft     int  `json:"days_left"`
+		HoursLeft    int  `json:"hours_left"`
+		MinutesLeft  int  `json:"minutes_left"`
+	}
+	testutil.DecodeJSON(t, resp, &status)
+	if !status.RewardActive {
+		t.Fatalf("expected a sub-day reward to still report as active, got %+v", status)
+	}
+	if status.HoursLeft != 5 { // 5h59m remaining truncates to 5
+		t.Errorf("expected hours_left=5 for a 6h reward, got %d", status.HoursLeft)
+	}
+	if status.MinutesLeft < 355 || status.MinutesLeft > 360 {
+		t.Errorf("expected minutes_left near 360, got %d", status.MinutesLeft)
+	}
+	if status.DaysLeft != 1 {
+		t.Errorf("expected days_left to round a partial day up to 1, got %d", status.DaysLeft)
+	}
+}
+
 func TestApiInviteRedeem_DoubleRedeemConflict(t *testing.T) {
 	app := apptest.New(t)
+	setReferralEnabled(true)
 	codeA := testutil.UniqueName("CA")[:6]
 	codeB := testutil.UniqueName("CB")[:6]
 	testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &codeA })
@@ -265,6 +813,7 @@ func TestApiInviteRedeem_DoubleRedeemConflict(t *testing.T) {
 
 func TestApiInviteRedeem_UnknownCode(t *testing.T) {
 	app := apptest.New(t)
+	setReferralEnabled(true)
 	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{
 		"token": testutil.UniqueName("t"), "invite_code": "ZZZZZZ",
 	}, nil)
@@ -275,6 +824,7 @@ func TestApiInviteRedeem_UnknownCode(t *testing.T) {
 
 func TestApiInviteRedeem_CannotRedeemOwnCode(t *testing.T) {
 	app := apptest.New(t)
+	setReferralEnabled(true)
 	code := testutil.UniqueName("SELF")[:6]
 	token := testutil.UniqueName("client-token")
 	testutil.CreateUser(t, func(u *models.User) {
@@ -291,91 +841,60 @@ func TestApiInviteRedeem_CannotRedeemOwnCode(t *testing.T) {
 
 // --- ApiInviteRewardStatus ---
 
-func TestApiInviteRewardStatus_FullLifecycle(t *testing.T) {
+// reward-status is a pure read: repeated polling must never move the expiry, since
+// rewards are granted only at redemption time.
+func TestApiInviteRewardStatus_PollingDoesNotChangeTheWindow(t *testing.T) {
 	app := apptest.New(t)
-	database.DB.Model(&models.AppSettings{}).Where("id = ?", 1).Updates(map[string]interface{}{
-		"referral_required_invites": 2,
-		"referral_reward_days":      7,
-	})
+	setInstantReward(true, 0, 6*60, 0)
 
-	referrerToken := testutil.UniqueName("referrer-token")
-	referrer := testutil.CreateUser(t, func(u *models.User) { u.ClientToken = &referrerToken })
-	code := testutil.UniqueName("RW")[:6]
-	referrer.InviteCode = &code
-	database.DB.Save(referrer)
+	code := uniqueInviteCode("PL")
+	testutil.CreateUser(t, func(u *models.User) { u.InviteCode = &code })
 
-	// below threshold: not eligible yet
-	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/reward-status", map[string]string{"token": referrerToken}, nil)
-	var status struct {
-		Eligible        bool   `json:"eligible"`
-		InvitesCount    int64  `json:"invites_count"`
-		InvitesRequired int    `json:"invites_required"`
-		RewardActive    bool   `json:"reward_active"`
-		RewardExpiresAt string `json:"reward_expires_at"`
-	}
-	testutil.DecodeJSON(t, resp, &status)
-	if status.Eligible || status.RewardActive {
-		t.Fatalf("expected not eligible with 0 referrals, got %+v", status)
+	token := testutil.UniqueName("poll-token")
+	testutil.DoJSON(t, app, "POST", "/api/v1/invite/redeem", map[string]string{"token": token, "invite_code": code}, nil)
+
+	read := func() rewardWindow {
+		resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/reward-status", map[string]string{"token": token}, nil)
+		var w rewardWindow
+		testutil.DecodeJSON(t, resp, &w)
+		return w
 	}
 
-	// bring in 2 referrals
-	testutil.CreateUser(t, func(u *models.User) { u.ReferredByUserID = &referrer.ID })
-	testutil.CreateUser(t, func(u *models.User) { u.ReferredByUserID = &referrer.ID })
-
-	resp2 := testutil.DoJSON(t, app, "POST", "/api/v1/invite/reward-status", map[string]string{"token": referrerToken}, nil)
-	testutil.DecodeJSON(t, resp2, &status)
-	if !status.Eligible || !status.RewardActive {
-		t.Fatalf("expected eligible+active after reaching the threshold, got %+v", status)
+	first := read()
+	if !first.RewardActive || first.RewardExpiresAtUnix == nil {
+		t.Fatalf("expected an active reward after redeeming, got %+v", first)
 	}
-	if status.RewardExpiresAt == "" {
-		t.Errorf("expected a reward_expires_at timestamp")
-	}
-	firstExpiry, err := time.Parse(time.RFC3339Nano, status.RewardExpiresAt)
-	if err != nil {
-		t.Fatalf("failed to parse reward_expires_at %q: %v", status.RewardExpiresAt, err)
-	}
-
-	// calling again must not restart the timer. Compare with a small tolerance:
-	// the first response reflects the in-memory value (nanosecond precision),
-	// the second reflects the same instant reloaded from Postgres (microsecond
-	// precision), so the raw strings can legitimately differ in their last digits.
-	resp3 := testutil.DoJSON(t, app, "POST", "/api/v1/invite/reward-status", map[string]string{"token": referrerToken}, nil)
-	testutil.DecodeJSON(t, resp3, &status)
-	secondExpiry, err := time.Parse(time.RFC3339Nano, status.RewardExpiresAt)
-	if err != nil {
-		t.Fatalf("failed to parse reward_expires_at %q: %v", status.RewardExpiresAt, err)
-	}
-	if diff := secondExpiry.Sub(firstExpiry); diff < -time.Second || diff > time.Second {
-		t.Errorf("expected the reward timer not to restart: first=%v second=%v (diff=%v)", firstExpiry, secondExpiry, diff)
+	second := read()
+	if second.RewardExpiresAtUnix == nil || *second.RewardExpiresAtUnix != *first.RewardExpiresAtUnix {
+		t.Errorf("expected polling not to move the expiry: first=%v second=%v",
+			*first.RewardExpiresAtUnix, second.RewardExpiresAtUnix)
 	}
 }
 
 func TestApiInviteRewardStatus_ExpiredReward(t *testing.T) {
 	app := apptest.New(t)
-	database.DB.Model(&models.AppSettings{}).Where("id = ?", 1).Updates(map[string]interface{}{
-		"referral_required_invites": 1,
-		"referral_reward_days":      7,
-	})
+	setInstantReward(true, 0, 0, 0)
 
 	token := testutil.UniqueName("expired-token")
-	past := time.Now().AddDate(0, 0, -30) // activated 30 days ago, reward is 7 days
-	referrer := testutil.CreateUser(t, func(u *models.User) {
+	past := time.Now().Add(-30 * time.Hour)
+	testutil.CreateUser(t, func(u *models.User) {
 		u.ClientToken = &token
-		u.RewardActivatedAt = &past
+		u.RewardExpiresAt = &past
 	})
-	testutil.CreateUser(t, func(u *models.User) { u.ReferredByUserID = &referrer.ID })
 
 	resp := testutil.DoJSON(t, app, "POST", "/api/v1/invite/reward-status", map[string]string{"token": token}, nil)
-	var status struct {
-		Eligible     bool `json:"eligible"`
-		RewardActive bool `json:"reward_active"`
-	}
-	testutil.DecodeJSON(t, resp, &status)
-	if !status.Eligible {
-		t.Errorf("expected eligible even though the reward window already expired")
-	}
-	if status.RewardActive {
+	var w rewardWindow
+	testutil.DecodeJSON(t, resp, &w)
+
+	if w.RewardActive {
 		t.Errorf("expected reward_active=false once the reward window has expired")
+	}
+	if w.RemainingSeconds != 0 {
+		t.Errorf("expected remaining_seconds=0 for an expired reward, got %d", w.RemainingSeconds)
+	}
+	// The expiry itself is still reported — it just sits in the past.
+	if w.RewardExpiresAtUnix == nil {
+		t.Errorf("expected the past expiry to still be reported")
 	}
 }
 
@@ -498,9 +1017,160 @@ func TestApiSplashConf_AssignsNodes(t *testing.T) {
 	}
 }
 
+// splashConfNodes posts to /api/v1/splash/conf and returns the addresses of the
+// nodes in each list. V2RayNode carries no json tags, so the API emits Go field
+// names ("Address") rather than snake_case.
+func splashConfNodes(t *testing.T, app *fiber.App) (noAds []string, ads []string) {
+	t.Helper()
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/splash/conf", map[string]string{
+		"client_key": testutil.UniqueName("ck"),
+	}, nil)
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var out struct {
+		NoAdsList []struct {
+			Address string
+		} `json:"no_ads_list"`
+		AdsList []struct {
+			Address string
+		} `json:"ads_list"`
+	}
+	testutil.DecodeJSON(t, resp, &out)
+	for _, n := range out.NoAdsList {
+		noAds = append(noAds, n.Address)
+	}
+	for _, n := range out.AdsList {
+		ads = append(ads, n.Address)
+	}
+	return noAds, ads
+}
+
+// isolateSplashConfNodes deactivates every pre-existing node so a splash test
+// only ever sees the ones it creates. The harness runs each test in a
+// transaction over the real project database, which in a dev environment is
+// full of live nodes that would otherwise be picked up by /api/v1/splash/conf.
+// The update is rolled back with the rest of the transaction.
+func isolateSplashConfNodes(t *testing.T) {
+	t.Helper()
+	if err := database.DB.Model(&models.V2RayNode{}).
+		Where("is_active = ?", true).
+		Update("is_active", false).Error; err != nil {
+		t.Fatalf("failed to isolate pre-existing nodes: %v", err)
+	}
+}
+
+// seedSplashConfNodes isolates the test from pre-existing data, then creates
+// `perAddress` non-ads nodes on each of the given addresses plus a single ads
+// node so the ads lookup never 503s.
+func seedSplashConfNodes(t *testing.T, perAddress int, addresses ...string) {
+	t.Helper()
+	isolateSplashConfNodes(t)
+	for _, addr := range addresses {
+		for i := 0; i < perAddress; i++ {
+			if err := database.DB.Create(&models.V2RayNode{
+				Name: testutil.UniqueName("noads"), Address: addr, Port: 443,
+				Protocol: "vless", IsActive: true, Ads: false,
+			}).Error; err != nil {
+				t.Fatalf("failed to seed non-ads node: %v", err)
+			}
+		}
+	}
+	if err := database.DB.Create(&models.V2RayNode{
+		Name: testutil.UniqueName("ads"), Address: "ads.example.com", Port: 8443,
+		Protocol: "vless", IsActive: true, Ads: true,
+	}).Error; err != nil {
+		t.Fatalf("failed to seed ads node: %v", err)
+	}
+}
+
+// setSplashConf configures the singleton settings row for the splash tests.
+func setSplashConf(t *testing.T, count int, diverse bool) {
+	t.Helper()
+	var s models.AppSettings
+	if err := database.DB.First(&s, 1).Error; err != nil {
+		t.Fatalf("failed to load settings: %v", err)
+	}
+	s.SplashConfCount = count
+	s.SplashDiverseServers = diverse
+	if err := database.DB.Save(&s).Error; err != nil {
+		t.Fatalf("failed to save settings: %v", err)
+	}
+}
+
+func TestApiSplashConf_DiverseSpreadsAcrossAddresses(t *testing.T) {
+	app := apptest.New(t)
+	setSplashConf(t, 5, true)
+	// Four addresses, five nodes each: a uniform random pick over the 20 rows
+	// would almost always repeat an address across the four returned configs.
+	seedSplashConfNodes(t, 5, "a.example.com", "b.example.com", "c.example.com", "d.example.com")
+
+	// Repeated because the selection is randomized; a single pass could pass by
+	// luck even if the round-robin were broken.
+	for attempt := 0; attempt < 10; attempt++ {
+		noAds, _ := splashConfNodes(t, app)
+		if len(noAds) != 4 {
+			t.Fatalf("expected 4 non-ads nodes (splash_conf_count 5 minus the ads node), got %d", len(noAds))
+		}
+		seen := map[string]bool{}
+		for _, addr := range noAds {
+			if seen[addr] {
+				t.Fatalf("attempt %d: address %q returned more than once in %v", attempt, addr, noAds)
+			}
+			seen[addr] = true
+		}
+	}
+}
+
+func TestApiSplashConf_DiverseSingleAddressStillFillsCount(t *testing.T) {
+	app := apptest.New(t)
+	setSplashConf(t, 5, true)
+	// Mirrors production today: every node shares one address. Spreading has
+	// nothing to spread over, so it must still return the full count rather
+	// than collapsing to one node per address.
+	seedSplashConfNodes(t, 10, "only.example.com")
+
+	noAds, _ := splashConfNodes(t, app)
+	if len(noAds) != 4 {
+		t.Fatalf("expected 4 non-ads nodes even with a single address, got %d", len(noAds))
+	}
+}
+
+func TestApiSplashConf_DiverseOffKeepsPlainRandom(t *testing.T) {
+	app := apptest.New(t)
+	setSplashConf(t, 5, false)
+	seedSplashConfNodes(t, 5, "a.example.com", "b.example.com", "c.example.com", "d.example.com")
+
+	noAds, _ := splashConfNodes(t, app)
+	if len(noAds) != 4 {
+		t.Fatalf("expected 4 non-ads nodes with spreading off, got %d", len(noAds))
+	}
+}
+
+func TestApiSplashConf_DiverseDoesNotTouchAdsList(t *testing.T) {
+	app := apptest.New(t)
+	setSplashConf(t, 5, true)
+	seedSplashConfNodes(t, 5, "a.example.com", "b.example.com")
+
+	noAds, ads := splashConfNodes(t, app)
+	if len(ads) != 1 {
+		t.Fatalf("expected exactly one ads node, got %d", len(ads))
+	}
+	if ads[0] != "ads.example.com" {
+		t.Errorf("expected the ads node to come from the ads pool, got %q", ads[0])
+	}
+	for _, addr := range noAds {
+		if addr == "ads.example.com" {
+			t.Errorf("ads address leaked into the non-ads list: %v", noAds)
+		}
+	}
+}
+
 func TestApiSplashConf_NoNodesAvailable(t *testing.T) {
 	app := apptest.New(t)
-	// No active nodes exist in this fresh transaction, so both lookups should fail.
+	// The transaction still sees whatever nodes the real database holds, so they
+	// have to be deactivated before either lookup can be expected to fail.
+	isolateSplashConfNodes(t)
 	resp := testutil.DoJSON(t, app, "POST", "/api/v1/splash/conf", map[string]string{
 		"client_key": testutil.UniqueName("ck-empty"),
 	}, nil)

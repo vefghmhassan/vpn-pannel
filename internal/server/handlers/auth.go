@@ -11,13 +11,19 @@ import (
 )
 
 func LoginPage(c *fiber.Ctx) error {
-	return c.Render("login", fiber.Map{"title": "Login"})
+	return c.Render("login", fiber.Map{"title": "Login"}, "")
 }
+
+const (
+	loginSessionTTL         = 12 * time.Hour
+	loginSessionRememberTTL = 30 * 24 * time.Hour
+)
 
 func LoginSubmit(c *fiber.Ctx) error {
 	type form struct {
 		Email    string `form:"email"`
 		Password string `form:"password"`
+		Remember string `form:"remember"`
 	}
 	var f form
 	if err := c.BodyParser(&f); err != nil {
@@ -25,19 +31,23 @@ func LoginSubmit(c *fiber.Ctx) error {
 	}
 	var user models.User
 	if err := database.DB.Where("email = ?", f.Email).First(&user).Error; err != nil {
-		return c.Status(fiber.StatusUnauthorized).Render("login", fiber.Map{"error": "نام کاربری یا رمز عبور اشتباه است"})
+		return c.Status(fiber.StatusUnauthorized).Render("login", fiber.Map{"error": "نام کاربری یا رمز عبور اشتباه است"}, "")
 	}
 	if !user.CheckPassword(f.Password) || !user.IsActive {
-		return c.Status(fiber.StatusUnauthorized).Render("login", fiber.Map{"error": "نام کاربری یا رمز عبور اشتباه است"})
+		return c.Status(fiber.StatusUnauthorized).Render("login", fiber.Map{"error": "نام کاربری یا رمز عبور اشتباه است"}, "")
 	}
-	token, err := services.GenerateUserToken(user.ID, user.Role, "", 12*time.Hour)
+	ttl := loginSessionTTL
+	if f.Remember != "" {
+		ttl = loginSessionRememberTTL
+	}
+	token, err := services.GenerateUserToken(user.ID, user.Role, "", ttl)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("token error")
 	}
 	c.Cookie(&fiber.Cookie{
 		Name:     "admin_token",
 		Value:    token,
-		Expires:  time.Now().Add(12 * time.Hour),
+		Expires:  time.Now().Add(ttl),
 		HTTPOnly: true,
 		Secure:   false,
 		SameSite: "Lax",

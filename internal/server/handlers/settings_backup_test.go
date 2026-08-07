@@ -97,6 +97,39 @@ func TestSettingsImport_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestSettingsImport_OmittedSplashDiverseServersKeepsValue(t *testing.T) {
+	// splash_diverse_servers defaults to on, so a backup taken before the setting
+	// existed must leave it alone rather than reset it to the Go zero value.
+	app := apptest.New(t)
+	var s models.AppSettings
+	database.DB.First(&s, 1)
+	s.SplashDiverseServers = true
+	database.DB.Save(&s)
+
+	exportResp := testutil.DoJSON(t, app, "GET", "/admin/settings/export", nil, adminAuth(t))
+	body, _ := io.ReadAll(exportResp.Body)
+	var payload map[string]interface{}
+	json.Unmarshal(body, &payload)
+	appSettings := payload["app_settings"].(map[string]interface{})
+	delete(appSettings, "splash_diverse_servers")
+	appSettings["current_version"] = "7.7.7"
+	modified, _ := json.Marshal(payload)
+
+	resp := doMultipartUpload(t, app, "/admin/settings/import", "backup_file", "backup.json", modified, adminAuth(t))
+	if resp.StatusCode != 302 && resp.StatusCode != 303 {
+		t.Fatalf("expected a redirect after import, got %d", resp.StatusCode)
+	}
+
+	var reloaded models.AppSettings
+	database.DB.First(&reloaded, 1)
+	if reloaded.CurrentVersion != "7.7.7" {
+		t.Fatalf("expected the import to apply, got CurrentVersion %q", reloaded.CurrentVersion)
+	}
+	if !reloaded.SplashDiverseServers {
+		t.Errorf("expected SplashDiverseServers to survive an import that omits the key")
+	}
+}
+
 func TestSettingsImport_RejectsWrongVersion(t *testing.T) {
 	app := apptest.New(t)
 	bad := []byte(`{"version": 999, "app_settings": {}}`)

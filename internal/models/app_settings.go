@@ -40,7 +40,18 @@ type AppSettings struct {
 	// Timeout (seconds) for considering a connection as established
 	ConnectedTimeoutSeconds int `gorm:"not null;default:15" json:"connectedTimeout"`
 	// Number of configs to return per splash/conf request (per ads/no-ads)
-	SplashConfCount    int    `gorm:"not null;default:4" json:"splashConfCount"`
+	SplashConfCount int `gorm:"not null;default:4" json:"splashConfCount"`
+	// Spread the non-ads configs returned by /api/v1/splash/conf across distinct
+	// V2RayNode.Address values instead of picking rows uniformly at random, so a
+	// client rarely receives several configs from the same server. The ads node
+	// is unaffected.
+	//
+	// No GORM default: zero value (false) must persist when an admin turns the
+	// spreading off — a `default:true` tag would make GORM skip false on save.
+	// It defaults to on via seedSettings on a fresh DB and via
+	// backfillSplashDiverseServers on an existing one.
+	SplashDiverseServers bool `json:"splashDiverseServers"`
+
 	AppTimer           int    `gorm:"not null;default:30" json:"appTimer"`
 	Domain             string `gorm:"size:128" json:"domain"`
 	LinkApp            string `gorm:"size:255" json:"linkApp"`
@@ -52,11 +63,31 @@ type AppSettings struct {
 	// the wheel — a `default:true` tag would make GORM skip false on save.
 	WheelEnabled bool `json:"wheelEnabled"`
 
-	// Referral reward task: invite N friends to unlock M days without ads.
-	ReferralRequiredInvites int    `gorm:"not null;default:5" json:"referralRequiredInvites"`
-	ReferralRewardDays      int    `gorm:"not null;default:7" json:"referralRewardDays"`
-	ReferralTaskText        string `gorm:"size:512" json:"referralTaskText"`
+	// Master switch for the whole invite/referral feature. Defaults to off: the app
+	// hides the invite menu until an admin turns it on. Same `default:false`
+	// reasoning as ReferralInstantRewardEnabled below.
+	ReferralEnabled bool `gorm:"not null;default:false" json:"referralEnabled"`
+
+	// Text shown on the app's invite screen.
+	ReferralTaskText string `gorm:"size:512" json:"referralTaskText"`
 	// ReferralShareText may contain a "{code}" placeholder, substituted with the
 	// user's actual invite code before being returned to the client.
 	ReferralShareText string `gorm:"size:512" json:"referralShareText"`
+
+	// Instant two-sided referral reward: the moment someone redeems an invite
+	// code, both the code's owner and the redeemer get ad-free time. Durations
+	// are stored in minutes (same convention as WheelSegment.RewardValue) so the
+	// admin can express them in days *or* hours.
+	//
+	// `default:false` (rather than no default tag) so AutoMigrate can add the column
+	// to an existing app_settings row without leaving it NULL. It is safe here in a
+	// way `default:true` would not be: even if GORM skips the zero value on save,
+	// the DB substitutes false — the same value the admin asked for.
+	ReferralInstantRewardEnabled bool `gorm:"not null;default:false" json:"referralInstantRewardEnabled"`
+	// Minutes granted to the code's owner for each friend who redeems it.
+	ReferralInviterRewardMinutes int `gorm:"not null;default:1440" json:"referralInviterRewardMinutes"`
+	// Minutes granted (once) to whoever enters someone else's code.
+	ReferralInviteeRewardMinutes int `gorm:"not null;default:1440" json:"referralInviteeRewardMinutes"`
+	// Cap on how many referrals may pay out to one inviter. 0 means unlimited.
+	ReferralMaxRewardedInvites int `gorm:"not null;default:0" json:"referralMaxRewardedInvites"`
 }

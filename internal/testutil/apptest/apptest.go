@@ -36,6 +36,9 @@ func New(t *testing.T) *fiber.App {
 	engine.AddFunc("fmtDate", func(tm *time.Time, system string) string {
 		return calendar.FormatDateTime(tm, calendar.System(system))
 	})
+	engine.AddFunc("fmtTime", func(tm time.Time, system string) string {
+		return calendar.FormatDateTime(&tm, calendar.System(system))
+	})
 
 	app := fiber.New(fiber.Config{
 		Views:       engine,
