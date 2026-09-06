@@ -12,6 +12,16 @@
   <div class="card bg-base-100 shadow mb-3">
     <div class="card-body p-4">
       <div class="flex flex-wrap gap-3 items-end">
+        <label class="form-control w-80 max-w-full">
+          <div class="label"><span class="label-text">جستجو</span></div>
+          {{/* type=search gives the browser's native clear button, and clearing
+               fires an input event, so the debounce below re-submits for free. */}}
+          <input type="search" name="q" id="v2raySearch" value="{{ .f.Q }}"
+                 dir="auto" autocomplete="off"
+                 placeholder="نام، آدرس یا IP، پورت، تگ، پروتکل، کشور…"
+                 class="input input-bordered input-sm w-full" />
+        </label>
+
         <label class="form-control">
           <div class="label"><span class="label-text">مرتب‌سازی</span></div>
           <select name="sort" class="select select-bordered select-sm">
@@ -202,7 +212,7 @@
 <div class="fixed bottom-4 left-0 right-0">
   <div class="container mx-auto flex items-center justify-center gap-4 bg-base-100 rounded-box shadow p-2">
     {{ if .hasPrev }}
-      <a class="btn" href="/admin/v2ray?{{ .pageQuery }}&amp;page={{ .prevPage }}">قبلی</a>
+      <a class="btn" href="{{ .prevURL }}">قبلی</a>
     {{ else }}
       <button class="btn btn-disabled">قبلی</button>
     {{ end }}
@@ -210,7 +220,7 @@
     <span>صفحه {{ .page }} از {{ .totalPages }} (مجموع {{ .total }})</span>
 
     {{ if .hasNext }}
-      <a class="btn" href="/admin/v2ray?{{ .pageQuery }}&amp;page={{ .nextPage }}">بعدی</a>
+      <a class="btn" href="{{ .nextURL }}">بعدی</a>
     {{ else }}
       <button class="btn btn-disabled">بعدی</button>
     {{ end }}
@@ -258,6 +268,39 @@
     backdrop.addEventListener("click", () => setOpen(false));
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") setOpen(false);
+    });
+  })();
+
+  (function () {
+    const form = document.getElementById("filterForm");
+    const input = document.getElementById("v2raySearch");
+    if (!form || !input) return;
+
+    // Every search is a full page load, so put the caret back at the end of
+    // the box: without this the field loses focus mid-word and typing a
+    // second character is impossible.
+    if (input.value) {
+      input.focus();
+      try {
+        input.setSelectionRange(input.value.length, input.value.length);
+      } catch (e) {
+        /* some browsers refuse selection on type=search; focus alone is enough */
+      }
+    }
+
+    let timer = null;
+    input.addEventListener("input", () => {
+      clearTimeout(timer);
+      // requestSubmit, not submit, so this behaves exactly like pressing "اعمال".
+      timer = setTimeout(() => {
+        if (form.requestSubmit) form.requestSubmit();
+        else form.submit();
+      }, 400);
+    });
+
+    // Enter submits the form itself; drop the pending timer so it cannot fire again.
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") clearTimeout(timer);
     });
   })();
 </script>

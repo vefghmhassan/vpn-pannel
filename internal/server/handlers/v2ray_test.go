@@ -309,3 +309,132 @@ func TestV2RayBatchDelete(t *testing.T) {
 		t.Errorf("expected both nodes to be deleted, %d remain", count)
 	}
 }
+
+// The search box is one free-text parameter over several columns, so these
+// tests pin down each column it must reach and, above all, that its ORs stay
+// grouped: unparenthesised they would swallow the other filters' ANDs.
+
+func TestV2RayList_SearchMatchesAddressPartially(t *testing.T) {
+	app := apptest.New(t)
+	// A unique label in front of the octets keeps these rows out of every other
+	// test's way while still exercising a partial address match.
+	base := testutil.UniqueName("addr")
+	near1 := testutil.UniqueName("near1")
+	near2 := testutil.UniqueName("near2")
+	far := testutil.UniqueName("far")
+	database.DB.Create(&models.V2RayNode{Name: near1, Address: base + ".10.10.1", Port: 443, Protocol: "vless", IsActive: true})
+	database.DB.Create(&models.V2RayNode{Name: near2, Address: base + ".10.10.2", Port: 443, Protocol: "vless", IsActive: true})
+	database.DB.Create(&models.V2RayNode{Name: far, Address: base + ".99.99.9", Port: 443, Protocol: "vless", IsActive: true})
+
+	text := v2rayListBody(t, app, "?q="+base+".10.10&page_size=2000")
+	if !strings.Contains(text, near1) || !strings.Contains(text, near2) {
+		t.Errorf("expected the partial address search to include %q and %q", near1, near2)
+	}
+	if strings.Contains(text, far) {
+		t.Errorf("expected the partial address search to exclude %q", far)
+	}
+}
+
+func TestV2RayList_SearchMatchesNameAndPort(t *testing.T) {
+	app := apptest.New(t)
+	addr := testutil.UniqueName("np") + ".example.com"
+	oddPort := testutil.UniqueName("oddport")
+	stdPort := testutil.UniqueName("stdport")
+	database.DB.Create(&models.V2RayNode{Name: oddPort, Address: addr, Port: 51793, Protocol: "vless", IsActive: true})
+	database.DB.Create(&models.V2RayNode{Name: stdPort, Address: addr, Port: 443, Protocol: "vless", IsActive: true})
+
+	byName := v2rayListBody(t, app, "?q="+oddPort+"&page_size=2000")
+	if !strings.Contains(byName, oddPort) {
+		t.Errorf("expected the name search to include %q", oddPort)
+	}
+	if strings.Contains(byName, stdPort) {
+		t.Errorf("expected the name search to exclude %q", stdPort)
+	}
+
+	// port is an int column: this only matches if the handler casts it to text.
+	byPort := v2rayListBody(t, app, "?q=51793&page_size=2000")
+	if !strings.Contains(byPort, oddPort) {
+		t.Errorf("expected the port search to include %q", oddPort)
+	}
+	if strings.Contains(byPort, stdPort) {
+		t.Errorf("expected the port search to exclude %q", stdPort)
+	}
+}
+
+func TestV2RayList_SearchMatchesTagsProtocolAndCountry(t *testing.T) {
+	app := apptest.New(t)
+	addr := testutil.UniqueName("tpc") + ".example.com"
+	tag := testutil.UniqueName("tag")
+	tagged := testutil.UniqueName("tagged")
+	trojan := testutil.UniqueName("trojan")
+	plain := testutil.UniqueName("plain")
+	database.DB.Create(&models.V2RayNode{Name: tagged, Address: addr, Port: 443, Protocol: "vless", Tags: "premium," + tag, IsActive: true})
+	database.DB.Create(&models.V2RayNode{Name: trojan, Address: addr, Port: 443, Protocol: "trojan", CountryCode: "SE", IsActive: true})
+	database.DB.Create(&models.V2RayNode{Name: plain, Address: addr, Port: 443, Protocol: "vless", IsActive: true})
+
+	byTag := v2rayListBody(t, app, "?q="+tag+"&page_size=2000")
+	if !strings.Contains(byTag, tagged) {
+		t.Errorf("expected the tag search to include %q", tagged)
+	}
+	if strings.Contains(byTag, plain) {
+		t.Errorf("expected the tag search to exclude %q", plain)
+	}
+
+	byProtocol := v2rayListBody(t, app, "?q=trojan&address="+addr+"&page_size=2000")
+	if !strings.Contains(byProtocol, trojan) {
+		t.Errorf("expected the protocol search to include %q", trojan)
+	}
+	if strings.Contains(byProtocol, plain) {
+		t.Errorf("expected the protocol search to exclude %q", plain)
+	}
+
+	byCountry := v2rayListBody(t, app, "?q=se&address="+addr+"&page_size=2000")
+	if !strings.Contains(byCountry, trojan) {
+		t.Errorf("expected the country-code search to include %q", trojan)
+	}
+}
+
+func TestV2RayList_SearchCombinesWithOtherFilters(t *testing.T) {
+	app := apptest.New(t)
+	addr := testutil.UniqueName("combo") + ".example.com"
+	activeName := testutil.UniqueName("comboactive")
+	inactiveName := testutil.UniqueName("comboinactive")
+	database.DB.Create(&models.V2RayNode{Name: activeName, Address: addr, Port: 443, Protocol: "vless", IsActive: true})
+	inactive := models.V2RayNode{Name: inactiveName, Address: addr, Port: 443, Protocol: "vless", IsActive: true}
+	database.DB.Create(&inactive)
+	inactive.IsActive = false
+	database.DB.Save(&inactive)
+
+	// If the search ORs were not parenthesised they would bind looser than this
+	// AND and the inactive node would come back too.
+	text := v2rayListBody(t, app, "?q="+addr+"&active=true&page_size=2000")
+	if !strings.Contains(text, activeName) {
+		t.Errorf("expected search+active to include %q", activeName)
+	}
+	if strings.Contains(text, inactiveName) {
+		t.Errorf("expected search+active to exclude %q", inactiveName)
+	}
+}
+
+func TestV2RayList_SearchSurvivesPaginationLinks(t *testing.T) {
+	app := apptest.New(t)
+	addr := testutil.UniqueName("paged") + ".example.com"
+	// One more than the smallest allowed page size, so a "next" link exists.
+	nodes := make([]models.V2RayNode, 0, 26)
+	for i := 0; i < 26; i++ {
+		nodes = append(nodes, models.V2RayNode{
+			Name: testutil.UniqueName("pagednode"), Address: addr,
+			Port: 443, Protocol: "vless", IsActive: true,
+		})
+	}
+	database.DB.Create(&nodes)
+
+	// The whole link is asserted, not just "q=": built inside the href as
+	// "?{{ .pageQuery }}&page=N", html/template percent-escaped the separators
+	// and page 2 silently dropped every filter.
+	text := v2rayListBody(t, app, "?q="+addr+"&page_size=25")
+	want := "/admin/v2ray?page=2&amp;page_size=25&amp;q=" + addr
+	if !strings.Contains(text, want) {
+		t.Errorf("expected the next-page link %q in the listing", want)
+	}
+}

@@ -74,6 +74,9 @@ const v2rayNoCountry = "none"
 // v2rayFilters is the parsed filter state of the list page. It is carried as one
 // value because the filter set outgrew a positional argument list.
 type v2rayFilters struct {
+	// Q is a free-text substring search across several columns. Every other
+	// field here is an exact match.
+	Q        string
 	Address  string
 	Protocol string
 	Ads      string // "", "true", "false"
@@ -92,6 +95,19 @@ type v2rayFilters struct {
 
 func v2rayFilteredQuery(f v2rayFilters) *gorm.DB {
 	q := database.DB.Model(&models.V2RayNode{})
+	if f.Q != "" {
+		like := "%" + strings.ToLower(f.Q) + "%"
+		// Passing a *gorm.DB to Where parenthesises the ORs, so they cannot
+		// escape the other filters' ANDs. port is an int column, hence the
+		// cast, which also lets "44" match 443.
+		q = q.Where(database.DB.
+			Where("LOWER(name) LIKE ?", like).
+			Or("LOWER(address) LIKE ?", like).
+			Or("LOWER(tags) LIKE ?", like).
+			Or("LOWER(protocol) LIKE ?", like).
+			Or("LOWER(country_code) LIKE ?", like).
+			Or("CAST(port AS TEXT) LIKE ?", like))
+	}
 	if f.Address != "" {
 		q = q.Where("address = ?", f.Address)
 	}
@@ -126,6 +142,9 @@ func v2rayFilteredQuery(f v2rayFilters) *gorm.DB {
 // has to be here or the pagination links would drop it.
 func (f v2rayFilters) v2rayQuery() url.Values {
 	qs := url.Values{}
+	if f.Q != "" {
+		qs.Set("q", f.Q)
+	}
 	if f.Address != "" {
 		qs.Set("address", f.Address)
 	}
@@ -179,6 +198,7 @@ func V2RayList(c *fiber.Ctx) error {
 	// window is only applied when date_filter is explicitly checked.
 	dr := parseDateRange(c)
 	f := v2rayFilters{
+		Q:        strings.TrimSpace(c.Query("q")),
 		Address:  strings.TrimSpace(c.Query("address")),
 		Protocol: strings.TrimSpace(c.Query("protocol")),
 		Ads:      strings.TrimSpace(c.Query("ads")),
@@ -239,6 +259,20 @@ func V2RayList(c *fiber.Ctx) error {
 	}
 	qs.Set("page_size", strconv.Itoa(pageSize))
 
+	// The pagination links are built whole here. html/template percent-escapes
+	// the "&" and "=" of a query string interpolated into the middle of an
+	// href, which collapses every active filter into one meaningless parameter
+	// name; interpolating a complete URL as the whole attribute, the way the
+	// chips do, is what keeps them intact.
+	pageURL := func(p int) string {
+		link := make(url.Values, len(qs)+1)
+		for k, v := range qs {
+			link[k] = v
+		}
+		link.Set("page", strconv.Itoa(p))
+		return "/admin/v2ray?" + link.Encode()
+	}
+
 	return c.Render("v2ray/index", fiber.Map{
 		"title":       "V2Ray Nodes",
 		"nodes":       nodes,
@@ -255,7 +289,8 @@ func V2RayList(c *fiber.Ctx) error {
 		"hasNext":     page < totalPages,
 		"prevPage":    page - 1,
 		"nextPage":    page + 1,
-		"pageQuery":   qs.Encode(),
+		"prevURL":     pageURL(page - 1),
+		"nextURL":     pageURL(page + 1),
 		"f":           f,
 		"sortOptions": v2raySortOptions,
 		"chips":       v2rayBuildChips(f, dr, pageSize),
@@ -299,6 +334,9 @@ func v2rayBuildChips(f v2rayFilters, dr dateRange, pageSize int) []v2rayChip {
 		chips = append(chips, v2rayChip{Label: label, ClearURL: without(mutate)})
 	}
 
+	if f.Q != "" {
+		add("جستجو: "+f.Q, func(x *v2rayFilters) { x.Q = "" })
+	}
 	if f.Address != "" {
 		add("آدرس: "+f.Address, func(x *v2rayFilters) { x.Address = "" })
 	}
