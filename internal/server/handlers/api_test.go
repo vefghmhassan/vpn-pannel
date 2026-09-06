@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -1176,6 +1177,172 @@ func TestApiSplashConf_NoNodesAvailable(t *testing.T) {
 	}, nil)
 	if resp.StatusCode != fiberServiceUnavailable {
 		t.Fatalf("expected 503 when no nodes are available, got %d", resp.StatusCode)
+	}
+}
+
+// --- ApiSplashConf multi-config ads ---
+
+// seedAdsNodes creates `perAddress` ads nodes on each of the given addresses.
+// seedSplashConfNodes already seeds one ads node on ads.example.com, so a test
+// calling both has 1 + len(addresses) distinct ads addresses in total.
+func seedAdsNodes(t *testing.T, perAddress int, addresses ...string) {
+	t.Helper()
+	for _, addr := range addresses {
+		for i := 0; i < perAddress; i++ {
+			if err := database.DB.Create(&models.V2RayNode{
+				Name: testutil.UniqueName("ads"), Address: addr, Port: 8443,
+				Protocol: "vless", IsActive: true, Ads: true,
+			}).Error; err != nil {
+				t.Fatalf("failed to seed ads node: %v", err)
+			}
+		}
+	}
+}
+
+// setMultiAds configures the multi-config ads settings, leaving every other
+// field (including SplashConfCount and SplashDiverseServers) untouched.
+func setMultiAds(t *testing.T, enabled bool, count int) {
+	t.Helper()
+	var s models.AppSettings
+	if err := database.DB.First(&s, 1).Error; err != nil {
+		t.Fatalf("failed to load settings: %v", err)
+	}
+	s.AdsMultiConfigEnabled = enabled
+	s.AdsConfigCount = count
+	if err := database.DB.Save(&s).Error; err != nil {
+		t.Fatalf("failed to save settings: %v", err)
+	}
+}
+
+// assertDistinct fails when the same address appears twice, which is the whole
+// promise of multi-config ads.
+func assertDistinct(t *testing.T, label string, addrs []string) {
+	t.Helper()
+	seen := map[string]bool{}
+	for _, addr := range addrs {
+		if seen[addr] {
+			t.Fatalf("%s: address %q returned more than once in %v", label, addr, addrs)
+		}
+		seen[addr] = true
+	}
+}
+
+func TestApiSplashConf_MultiAdsOffKeepsSingleNode(t *testing.T) {
+	// The toggle is off, so extra ads servers must change nothing: exactly one
+	// ads config, exactly as before the feature existed.
+	app := apptest.New(t)
+	setSplashConf(t, 5, true)
+	setMultiAds(t, false, 3)
+	seedSplashConfNodes(t, 5, "a.example.com", "b.example.com")
+	seedAdsNodes(t, 2, "ads2.example.com", "ads3.example.com")
+
+	_, ads := splashConfNodes(t, app)
+	if len(ads) != 1 {
+		t.Fatalf("expected exactly one ads node while multi-config is off, got %d (%v)", len(ads), ads)
+	}
+}
+
+func TestApiSplashConf_MultiAdsSpreadsAcrossAdsAddresses(t *testing.T) {
+	app := apptest.New(t)
+	setSplashConf(t, 5, true)
+	setMultiAds(t, true, 3)
+	seedSplashConfNodes(t, 5, "a.example.com", "b.example.com")
+	// Two more ads addresses on top of seedSplashConfNodes' ads.example.com, four
+	// nodes each: a uniform random pick over the rows would often repeat one.
+	seedAdsNodes(t, 4, "ads2.example.com", "ads3.example.com")
+
+	// Repeated because the selection is randomized; a single pass could pass by
+	// luck even if the per-address dedup were broken.
+	for attempt := 0; attempt < 10; attempt++ {
+		_, ads := splashConfNodes(t, app)
+		if len(ads) != 3 {
+			t.Fatalf("attempt %d: expected 3 ads nodes, got %d (%v)", attempt, len(ads), ads)
+		}
+		assertDistinct(t, fmt.Sprintf("attempt %d", attempt), ads)
+	}
+}
+
+func TestApiSplashConf_MultiAdsCapsAtDistinctAdsServers(t *testing.T) {
+	// Asking for more configs than there are ads servers returns fewer rather
+	// than handing out two configs from the same server.
+	app := apptest.New(t)
+	setSplashConf(t, 5, true)
+	setMultiAds(t, true, 6)
+	seedSplashConfNodes(t, 5, "a.example.com")
+	// One extra ads address, so two distinct ads servers exist against a request
+	// for six — each holding plenty of nodes to fill six if dedup were broken.
+	seedAdsNodes(t, 5, "ads2.example.com")
+
+	for attempt := 0; attempt < 10; attempt++ {
+		_, ads := splashConfNodes(t, app)
+		if len(ads) != 2 {
+			t.Fatalf("attempt %d: expected 2 ads nodes (one per available ads server), got %d (%v)", attempt, len(ads), ads)
+		}
+		assertDistinct(t, fmt.Sprintf("attempt %d", attempt), ads)
+	}
+}
+
+func TestApiSplashConf_MultiAdsIgnoresDiverseToggle(t *testing.T) {
+	// splash_diverse_servers governs the non-ads list only; ads spreading is
+	// driven purely by the multi-config toggle.
+	app := apptest.New(t)
+	setSplashConf(t, 5, false)
+	setMultiAds(t, true, 3)
+	seedSplashConfNodes(t, 5, "a.example.com", "b.example.com")
+	seedAdsNodes(t, 4, "ads2.example.com", "ads3.example.com")
+
+	for attempt := 0; attempt < 10; attempt++ {
+		_, ads := splashConfNodes(t, app)
+		if len(ads) != 3 {
+			t.Fatalf("attempt %d: expected 3 ads nodes with spreading off, got %d (%v)", attempt, len(ads), ads)
+		}
+		assertDistinct(t, fmt.Sprintf("attempt %d", attempt), ads)
+	}
+}
+
+func TestApiSplashConf_MultiAdsDoesNotShrinkNoAdsList(t *testing.T) {
+	// The ads count is additive: splash_conf_count still sizes the non-ads list
+	// on its own, so turning multi-config ads on must not eat into it.
+	app := apptest.New(t)
+	setSplashConf(t, 5, true)
+	setMultiAds(t, true, 3)
+	seedSplashConfNodes(t, 5, "a.example.com", "b.example.com", "c.example.com", "d.example.com")
+	seedAdsNodes(t, 4, "ads2.example.com", "ads3.example.com")
+
+	noAds, ads := splashConfNodes(t, app)
+	if len(noAds) != 4 {
+		t.Fatalf("expected 4 non-ads nodes (splash_conf_count 5 minus one), got %d", len(noAds))
+	}
+	if len(ads) != 3 {
+		t.Fatalf("expected 3 ads nodes alongside them, got %d", len(ads))
+	}
+	for _, addr := range noAds {
+		if strings.HasPrefix(addr, "ads") {
+			t.Errorf("ads address leaked into the non-ads list: %v", noAds)
+		}
+	}
+}
+
+func TestApiSplashConf_MultiAdsNoAdsNodesReturns503(t *testing.T) {
+	// Non-ads nodes exist but no ads node does, so the ads lookup is what fails.
+	app := apptest.New(t)
+	setSplashConf(t, 5, true)
+	setMultiAds(t, true, 3)
+	isolateSplashConfNodes(t)
+	for i := 0; i < 4; i++ {
+		if err := database.DB.Create(&models.V2RayNode{
+			Name: testutil.UniqueName("noads"), Address: "a.example.com", Port: 443,
+			Protocol: "vless", IsActive: true, Ads: false,
+		}).Error; err != nil {
+			t.Fatalf("failed to seed non-ads node: %v", err)
+		}
+	}
+
+	resp := testutil.DoJSON(t, app, "POST", "/api/v1/splash/conf", map[string]string{
+		"client_key": testutil.UniqueName("ck-no-ads"),
+	}, nil)
+	if resp.StatusCode != fiberServiceUnavailable {
+		t.Fatalf("expected 503 when no ads nodes are available, got %d", resp.StatusCode)
 	}
 }
 

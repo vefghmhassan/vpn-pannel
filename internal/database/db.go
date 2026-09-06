@@ -48,6 +48,7 @@ func AutoMigrateAndSeed() error {
 		&models.AppOpenEvent{},
 		&models.OnlineSnapshot{},
 		&models.AppMessage{},
+		&models.DailyStat{},
 	); err != nil {
 		return err
 	}
@@ -148,6 +149,8 @@ func seedSettings() error {
 		ConnectedTimeoutSeconds: 15,
 		SplashConfCount:         4,
 		SplashDiverseServers:    true,
+		AdsMultiConfigEnabled:   false,
+		AdsConfigCount:          1,
 		LinkApp:                 "",
 		ReleaseNotes:            "",
 		ConnectionTimer:         1000,

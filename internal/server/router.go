@@ -31,7 +31,16 @@ func RegisterRoutes(app *fiber.App) {
 	admin.Get("/metrics/active-users", handlers.ActiveUsersCount)
 	admin.Get("/metrics/online-stats", handlers.OnlineUsersStats)
 	admin.Get("/metrics/online-history", handlers.OnlineHistory)
-	// Online users stats page (5m / 30m / 24h, like Firebase Analytics)
+	// Analytics dashboard data (see internal/analytics): KPI row, per-day series,
+	// usage heatmap, signup-retention cohorts and the churn-risk list.
+	admin.Get("/metrics/summary", handlers.AnalyticsSummary)
+	admin.Get("/metrics/daily", handlers.AnalyticsDaily)
+	admin.Get("/metrics/heatmap", handlers.AnalyticsHeatmap)
+	admin.Get("/metrics/cohorts", handlers.AnalyticsCohorts)
+	admin.Get("/metrics/at-risk", handlers.AnalyticsAtRisk)
+	// Month grids for the date picker, so the widget needs no JS date library
+	admin.Get("/calendar/month", handlers.CalendarMonth)
+	// Analytics dashboard page
 	admin.Get("/stats", handlers.StatsPage)
 	// App-open tracker (per-user opens today / this month)
 	admin.Get("/tracker", handlers.TrackerPage)

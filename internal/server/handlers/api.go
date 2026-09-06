@@ -584,7 +584,19 @@ func ApiSplashConf(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "no non-ads nodes available")
 	}
-	adsList, err := findOrAssignNodes(reqKey, true, 1, now)
+	// Multi-config ads is a ceiling, not a quota: findDiverseAdsNodes returns at
+	// most one node per address, so with fewer ads servers than asked for the
+	// response simply carries fewer configs rather than repeating a server.
+	adsCount := 1
+	if s.AdsMultiConfigEnabled && s.AdsConfigCount > 1 {
+		adsCount = s.AdsConfigCount
+	}
+	var adsList []models.V2RayNode
+	if adsCount > 1 {
+		adsList, err = findDiverseAdsNodes(adsCount)
+	} else {
+		adsList, err = findOrAssignNodes(reqKey, true, 1, now)
+	}
 	if err != nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "no ads nodes available")
 	}
@@ -651,6 +663,45 @@ func findDiverseNoAdsNodes(count int) ([]models.V2RayNode, error) {
 	}
 	var nodes []models.V2RayNode
 	if err := database.DB.Raw(diverseNoAdsSQL, count).Scan(&nodes).Error; err != nil {
+		return nil, err
+	}
+	if len(nodes) == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return nodes, nil
+}
+
+// diverseAdsSQL picks at most one ads node per distinct address. ROW_NUMBER
+// numbers each address's nodes in random order and the outer WHERE keeps only
+// the first, so the candidate set is exactly "one random node from every ads
+// server"; ORDER BY random() then chooses which of those servers make the cut.
+//
+// Unlike diverseNoAdsSQL this deliberately never starts a second round: asking
+// for more configs than there are ads servers yields fewer rows rather than two
+// configs from the same server.
+//
+// The columns are listed explicitly because the inner SELECT * also exposes rn.
+const diverseAdsSQL = `
+SELECT id, created_at, updated_at, name, address, port, protocol, tags, ads,
+       country_code, country_flag, is_active, capacity, raw_link
+FROM (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY address ORDER BY random()) AS rn
+    FROM v2_ray_nodes
+    WHERE is_active = true AND ads = true
+) ranked
+WHERE rn = 1
+ORDER BY random()
+LIMIT ?`
+
+// findDiverseAdsNodes is the AppSettings.AdsMultiConfigEnabled variant of
+// findOrAssignNodes for the ads = true case: same contract, but it returns up to
+// count nodes drawn from distinct addresses instead of a single random one.
+func findDiverseAdsNodes(count int) ([]models.V2RayNode, error) {
+	if count <= 0 {
+		return []models.V2RayNode{}, nil
+	}
+	var nodes []models.V2RayNode
+	if err := database.DB.Raw(diverseAdsSQL, count).Scan(&nodes).Error; err != nil {
 		return nil, err
 	}
 	if len(nodes) == 0 {
@@ -803,6 +854,8 @@ func ApiSettings(c *fiber.Ctx) error {
 			ConnectionTimer:         1000,
 			CurrentVersionCode:      4000011,
 			WheelEnabled:            true,
+			AdsMultiConfigEnabled:   false,
+			AdsConfigCount:          1,
 			ReferralEnabled:         false,
 		}
 	}
@@ -827,6 +880,9 @@ func ApiSettings(c *fiber.Ctx) error {
 		"connection_timer":       s.ConnectionTimer,
 		"current_version_code":   s.CurrentVersionCode,
 		"wheel_enabled":          s.WheelEnabled,
+		// So the app knows to expect more than one entry in ads_list.
+		"ads_multi_config_enabled": s.AdsMultiConfigEnabled,
+		"ads_config_count":         s.AdsConfigCount,
 		// So the app can hide the invite menu without calling an /invite endpoint.
 		"referral_enabled": s.ReferralEnabled,
 	})

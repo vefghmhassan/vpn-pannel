@@ -16,8 +16,9 @@ func SettingsPage(c *fiber.Ctx) error {
 		_ = database.DB.FirstOrCreate(&s, models.AppSettings{ID: 1}).Error
 	}
 	return c.Render("settings/index", fiber.Map{
-		"title": "تنظیمات برنامه",
-		"s":     s,
+		"title":          "تنظیمات برنامه",
+		"s":              s,
+		"backupSections": BackupSections,
 	})
 }
 
@@ -37,6 +38,7 @@ func SettingsUpdate(c *fiber.Ctx) error {
 	s.AdsAppOpenEnabled = c.FormValue("ads_app_open_enabled") != ""
 	s.WheelEnabled = c.FormValue("wheel_enabled") != ""
 	s.SplashDiverseServers = c.FormValue("splash_diverse_servers") != ""
+	s.AdsMultiConfigEnabled = c.FormValue("ads_multi_config_enabled") != ""
 	if v := c.FormValue("current_version"); v != "" {
 		s.CurrentVersion = v
 	}
@@ -85,6 +87,11 @@ func SettingsUpdate(c *fiber.Ctx) error {
 				n = 2
 			}
 			s.SplashConfCount = n
+		}
+	}
+	if v := c.FormValue("ads_config_count"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			s.AdsConfigCount = n
 		}
 	}
 	if v := c.FormValue("link_app"); v != "" {

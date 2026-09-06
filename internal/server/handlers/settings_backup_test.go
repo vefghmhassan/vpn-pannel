@@ -130,6 +130,75 @@ func TestSettingsImport_OmittedSplashDiverseServersKeepsValue(t *testing.T) {
 	}
 }
 
+func TestSettingsImport_OmittedMultiAdsKeysKeepValues(t *testing.T) {
+	// Same contract as the splash_diverse_servers case above: a backup taken
+	// before multi-config ads existed must not switch it off or zero the count.
+	app := apptest.New(t)
+	var s models.AppSettings
+	database.DB.First(&s, 1)
+	s.AdsMultiConfigEnabled = true
+	s.AdsConfigCount = 3
+	database.DB.Save(&s)
+
+	exportResp := testutil.DoJSON(t, app, "GET", "/admin/settings/export", nil, adminAuth(t))
+	body, _ := io.ReadAll(exportResp.Body)
+	var payload map[string]interface{}
+	json.Unmarshal(body, &payload)
+	appSettings := payload["app_settings"].(map[string]interface{})
+	delete(appSettings, "ads_multi_config_enabled")
+	delete(appSettings, "ads_config_count")
+	appSettings["current_version"] = "8.8.8"
+	modified, _ := json.Marshal(payload)
+
+	resp := doMultipartUpload(t, app, "/admin/settings/import", "backup_file", "backup.json", modified, adminAuth(t))
+	if resp.StatusCode != 302 && resp.StatusCode != 303 {
+		t.Fatalf("expected a redirect after import, got %d", resp.StatusCode)
+	}
+
+	var reloaded models.AppSettings
+	database.DB.First(&reloaded, 1)
+	if reloaded.CurrentVersion != "8.8.8" {
+		t.Fatalf("expected the import to apply, got CurrentVersion %q", reloaded.CurrentVersion)
+	}
+	if !reloaded.AdsMultiConfigEnabled {
+		t.Errorf("expected AdsMultiConfigEnabled to survive an import that omits the key")
+	}
+	if reloaded.AdsConfigCount != 3 {
+		t.Errorf("expected AdsConfigCount to survive an import that omits the key, got %d", reloaded.AdsConfigCount)
+	}
+}
+
+func TestSettingsImport_AppliesMultiAdsKeys(t *testing.T) {
+	// The mirror image: when the keys are present they must actually be applied.
+	app := apptest.New(t)
+	var s models.AppSettings
+	database.DB.First(&s, 1)
+	s.AdsMultiConfigEnabled = false
+	s.AdsConfigCount = 1
+	database.DB.Save(&s)
+
+	exportResp := testutil.DoJSON(t, app, "GET", "/admin/settings/export", nil, adminAuth(t))
+	body, _ := io.ReadAll(exportResp.Body)
+	var payload map[string]interface{}
+	json.Unmarshal(body, &payload)
+	appSettings := payload["app_settings"].(map[string]interface{})
+	appSettings["ads_multi_config_enabled"] = true
+	appSettings["ads_config_count"] = 5
+	modified, _ := json.Marshal(payload)
+
+	resp := doMultipartUpload(t, app, "/admin/settings/import", "backup_file", "backup.json", modified, adminAuth(t))
+	if resp.StatusCode != 302 && resp.StatusCode != 303 {
+		t.Fatalf("expected a redirect after import, got %d", resp.StatusCode)
+	}
+
+	var reloaded models.AppSettings
+	database.DB.First(&reloaded, 1)
+	if !reloaded.AdsMultiConfigEnabled || reloaded.AdsConfigCount != 5 {
+		t.Errorf("expected the imported multi-ads settings to apply, got enabled=%v count=%d",
+			reloaded.AdsMultiConfigEnabled, reloaded.AdsConfigCount)
+	}
+}
+
 func TestSettingsImport_RejectsWrongVersion(t *testing.T) {
 	app := apptest.New(t)
 	bad := []byte(`{"version": 999, "app_settings": {}}`)

@@ -159,11 +159,17 @@ func InviteDetailPage(c *fiber.Ctx) error {
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	todayCounts := opensByUserSince(todayStart)
-	monthCounts := opensByUserSince(monthStart)
+	// Scoped to just this referrer's invitees, so the aggregation reads only the
+	// events it will actually render.
+	ids := make([]uint, 0, len(referred))
+	for _, u := range referred {
+		ids = append(ids, u.ID)
+	}
+	todayCounts := opensByUserSince(todayStart, ids)
+	monthCounts := opensByUserSince(monthStart, ids)
 
 	r := parseDateRange(c)
-	rangeCounts := opensByUserInRange(r.From, r.To)
+	rangeCounts := opensByUserInRange(r.From, r.To, ids)
 
 	rows := make([]userOpenStats, 0, len(referred))
 	for _, u := range referred {

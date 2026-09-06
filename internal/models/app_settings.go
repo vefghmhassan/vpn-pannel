@@ -52,6 +52,21 @@ type AppSettings struct {
 	// backfillSplashDiverseServers on an existing one.
 	SplashDiverseServers bool `json:"splashDiverseServers"`
 
+	// Multi-config ads: when on, /api/v1/splash/conf returns AdsConfigCount ads
+	// nodes instead of a single one, spread so that no two come from the same
+	// V2RayNode.Address. Deliberately independent of SplashDiverseServers, which
+	// only governs the non-ads list.
+	//
+	// `default:false` rather than no tag so AutoMigrate can add the column to an
+	// existing app_settings row without leaving it NULL. Safe in a way
+	// `default:true` would not be: when GORM skips the zero value the DB
+	// substitutes false, which is the value the admin asked for anyway.
+	AdsMultiConfigEnabled bool `gorm:"not null;default:false" json:"adsMultiConfigEnabled"`
+	// How many ads configs to hand out per request while AdsMultiConfigEnabled is
+	// on. It is a ceiling, not a quota: with fewer distinct ads addresses than
+	// this, the response carries only as many configs as there are ads servers.
+	AdsConfigCount int `gorm:"not null;default:1" json:"adsConfigCount"`
+
 	AppTimer           int    `gorm:"not null;default:30" json:"appTimer"`
 	Domain             string `gorm:"size:128" json:"domain"`
 	LinkApp            string `gorm:"size:255" json:"linkApp"`

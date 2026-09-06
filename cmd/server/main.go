@@ -59,6 +59,14 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	services.StartOnlineSnapshotter(ctx, 5*time.Minute)
+	// Fill in rollup rows for history that predates this feature, then keep the
+	// recent days fresh. Backfill failures are logged rather than fatal: the
+	// dashboard degrading to fewer days of history is not a reason to refuse to
+	// serve the panel.
+	if err := services.BackfillDailyStats(); err != nil {
+		log.Printf("daily stats backfill: %v", err)
+	}
+	services.StartDailyRollup(ctx, time.Hour)
 
 	port := os.Getenv("APP_PORT")
 	if port == "" {

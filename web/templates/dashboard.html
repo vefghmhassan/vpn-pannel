@@ -1,4 +1,4 @@
-<div class="stats stats-vertical lg:stats-horizontal shadow ">
+<div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-4">
   <div class="stat">
     <div class="stat-title">کاربران</div>
     <div class="stat-value">{{ .users }}</div>
@@ -21,9 +21,37 @@
   </div>
 </div>
 
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <h2 class="card-title text-base">نبض محصول</h2>
+      <a href="/admin/stats" class="btn btn-xs btn-outline">آمار کامل</a>
+    </div>
+
+    <div class="grid grid-cols-3 gap-3 mt-2">
+      <div>
+        <div class="text-xs opacity-60">فعال روزانه</div>
+        <div class="text-2xl font-bold" data-kpi="dau">…</div>
+      </div>
+      <div>
+        <div class="text-xs opacity-60">فعال هفتگی</div>
+        <div class="text-2xl font-bold" data-kpi="wau">…</div>
+      </div>
+      <div>
+        <div class="text-xs opacity-60">فعال ماهانه</div>
+        <div class="text-2xl font-bold" data-kpi="mau">…</div>
+      </div>
+    </div>
+
+    <p class="text-xs opacity-60 mt-3">کاربران فعال، ۱۴ روز اخیر</p>
+    <div style="height: 140px;"><canvas id="pulseChart"></canvas></div>
+  </div>
+</div>
+
+<script src="/static/vendor/chart.umd.min.js"></script>
 <script>
   (function(){
-    fetch('/admin/metrics/active-users?hours=24')
+    fetch('/admin/metrics/active-users?hours=24', { credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         var el = document.getElementById('activeUsersCount');
@@ -33,5 +61,82 @@
         var el = document.getElementById('activeUsersCount');
         if (el) { el.textContent = '—'; }
       });
+
+    // A fixed 14-day window, independent of the stats page's picker: this is the
+    // at-a-glance view, and a range control here would just be a second place to
+    // keep in sync.
+    var range = 'preset=30d&granularity=day';
+
+    fetch('/admin/metrics/summary?' + range, { credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(function (data) {
+        var current = (data && data.current) || {};
+        document.querySelectorAll('[data-kpi]').forEach(function (el) {
+          var v = current[el.getAttribute('data-kpi')];
+          el.textContent = typeof v === 'number' ? Math.round(v).toLocaleString('fa-IR') : '—';
+        });
+      })
+      .catch(function () {
+        document.querySelectorAll('[data-kpi]').forEach(function (el) { el.textContent = '—'; });
+      });
+
+    fetch('/admin/metrics/daily?' + range, { credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(function (data) {
+        var points = (data.points || []).slice(-14);
+
+        // daisyUI keeps its palette as bare colour components whose colour space
+        // varies by release (HSL in earlier 4.x builds, OKLCH in current ones).
+        // Try each wrapper, let the canvas say which the browser accepts, then
+        // read the painted pixel back as rgba() — the syntax Chart.js can parse
+        // regardless of the source format. Guessing wrong renders default grey.
+        var probe = document.createElement('canvas');
+        probe.width = probe.height = 1;
+        var pctx = probe.getContext('2d', { willReadFrequently: true });
+
+        function themeColor(name, a, fallback) {
+          var raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+          if (!raw || !pctx) return fallback;
+          var candidates = ['oklch(' + raw + ')', 'hsl(' + raw + ')'];
+          for (var i = 0; i < candidates.length; i++) {
+            try {
+              pctx.fillStyle = '#010203';
+              pctx.fillStyle = candidates[i];
+              if (pctx.fillStyle === '#010203') continue;
+              pctx.clearRect(0, 0, 1, 1);
+              pctx.fillRect(0, 0, 1, 1);
+              var px = pctx.getImageData(0, 0, 1, 1).data;
+              return 'rgba(' + px[0] + ',' + px[1] + ',' + px[2] + ',' + a + ')';
+            } catch (e) { /* try the next candidate */ }
+          }
+          return fallback;
+        }
+
+        var line = themeColor('--p', 1, '#3b82f6');
+        var fill = themeColor('--p', 0.2, 'rgba(59,130,246,0.2)');
+        var tick = themeColor('--bc', 0.6, 'rgba(120,120,120,0.8)');
+
+        new Chart(document.getElementById('pulseChart').getContext('2d'), {
+          type: 'line',
+          data: {
+            labels: points.map(function (p) { return p.label; }),
+            datasets: [{
+              label: 'کاربران فعال',
+              data: points.map(function (p) { return p.active; }),
+              borderColor: line, backgroundColor: fill,
+              borderWidth: 2, tension: 0.3, fill: true, pointRadius: 0
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { rtl: true } },
+            scales: {
+              x: { ticks: { color: tick, maxTicksLimit: 7, maxRotation: 0 }, grid: { display: false } },
+              y: { beginAtZero: true, ticks: { precision: 0, color: tick }, grid: { display: false } }
+            }
+          }
+        });
+      })
+      .catch(function () {});
   })();
 </script>

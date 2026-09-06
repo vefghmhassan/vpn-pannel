@@ -1,10 +1,13 @@
 <div class="bg-base-100 rounded-box shadow p-4 mb-4 flex items-center justify-between flex-wrap gap-2">
   <div>
-    <h1 class="text-2xl font-bold">آمار کاربران آنلاین</h1>
-    <p class="text-xs opacity-60 mt-1">شمارنده‌های زنده هر ۱۰ ثانیه به‌روزرسانی می‌شوند</p>
+    <h1 class="text-2xl font-bold">آمار و تحلیل</h1>
+    <p class="text-xs opacity-60 mt-1">شمارنده‌های زنده هر ۱۰ ثانیه به‌روزرسانی می‌شوند؛ بقیه با تغییر بازه</p>
   </div>
+  <button id="refreshAll" class="btn btn-sm btn-outline">به‌روزرسانی</button>
 </div>
 
+<!-- Live counters. The only thing on this page that polls: everything else is a
+     property of the selected range and does not change under the admin. -->
 <div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-4">
   <div class="stat">
     <div class="stat-figure text-success">
@@ -28,110 +31,89 @@
 
 {{ template "partials/daterange" .range }}
 
-<div class="card bg-base-100 shadow">
+<!-- KPI row -->
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
+  {{ range $kpi := .kpis }}
+  <div class="card bg-base-100 shadow">
+    <div class="card-body p-3">
+      <div class="text-xs opacity-60">{{ $kpi.Label }}</div>
+      <div class="text-2xl font-bold" data-kpi="{{ $kpi.Key }}">…</div>
+      <div class="text-[11px]" data-delta="{{ $kpi.Key }}"></div>
+      <div class="text-[10px] opacity-50">{{ $kpi.Hint }}</div>
+    </div>
+  </div>
+  {{ end }}
+</div>
+
+<!-- Daily bars -->
+<div class="card bg-base-100 shadow mb-4">
   <div class="card-body">
-    <h2 class="card-title">روند کاربران آنلاین در بازه انتخابی</h2>
-    <div style="height: 320px;">
-      <canvas id="onlineHistoryChart"></canvas>
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <h2 class="card-title text-base">فعالیت روزانه</h2>
+      <div class="join">
+        <button class="btn btn-xs join-item btn-active" data-chart-type="bar">میله‌ای</button>
+        <button class="btn btn-xs join-item" data-chart-type="line">خطی</button>
+      </div>
+    </div>
+    <p class="text-xs opacity-60">کاربران فعال هر بازه، تفکیک‌شده به تازه‌وارد و بازگشتی</p>
+    <div style="height: 320px;"><canvas id="dailyChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Opens + online trend -->
+<div class="grid lg:grid-cols-2 gap-4 mb-4">
+  <div class="card bg-base-100 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-base">تعداد باز کردن اپ</h2>
+      <div style="height: 260px;"><canvas id="opensChart"></canvas></div>
+    </div>
+  </div>
+  <div class="card bg-base-100 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-base">کاربران آنلاین همزمان</h2>
+      <p class="text-xs opacity-60">بیشینه و میانگین هر بازه</p>
+      <div style="height: 260px;"><canvas id="onlineChart"></canvas></div>
     </div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script>
-  (function () {
-    var elM5 = document.getElementById('statM5');
-    var elM30 = document.getElementById('statM30');
-    var elH24 = document.getElementById('statH24');
+<!-- Usage heatmap -->
+<div class="card bg-base-100 shadow mb-4">
+  <div class="card-body">
+    <h2 class="card-title text-base">ساعت‌های پر‌ترافیک</h2>
+    <p class="text-xs opacity-60">تعداد باز کردن اپ بر اساس روز هفته و ساعت — برای ظرفیت‌سنجی سرورها</p>
+    <div class="overflow-x-auto">
+      <div id="heatmap" class="inline-block min-w-full"></div>
+    </div>
+  </div>
+</div>
 
-    function refreshCounters() {
-      fetch('/admin/metrics/online-stats')
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-        .then(function (data) {
-          if (elM5 && typeof data.m5 === 'number') elM5.textContent = data.m5;
-          if (elM30 && typeof data.m30 === 'number') elM30.textContent = data.m30;
-          if (elH24 && typeof data.h24 === 'number') elH24.textContent = data.h24;
-        })
-        .catch(function () {
-          [elM5, elM30, elH24].forEach(function (el) { if (el) el.textContent = '—'; });
-        });
-    }
+<div class="grid lg:grid-cols-2 gap-4">
+  <!-- Retention cohorts -->
+  <div class="card bg-base-100 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-base">ماندگاری کاربران (Retention)</h2>
+      <p class="text-xs opacity-60">از هر گروه ثبت‌نامی، چند درصد در هفته‌های بعد برگشتند</p>
+      <div class="overflow-x-auto"><table class="table table-xs" id="cohortTable"></table></div>
+    </div>
+  </div>
 
-    var ctx = document.getElementById('onlineHistoryChart').getContext('2d');
-    var gradient = ctx.createLinearGradient(0, 0, 0, 320);
-    gradient.addColorStop(0, 'rgba(34, 197, 94, 0.30)');
-    gradient.addColorStop(1, 'rgba(34, 197, 94, 0.02)');
+  <!-- Churn risk -->
+  <div class="card bg-base-100 shadow">
+    <div class="card-body">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="card-title text-base">در معرض ریزش</h2>
+        <select id="atRiskDays" class="select select-bordered select-xs">
+          <option value="7">بیش از ۷ روز</option>
+          <option value="14">بیش از ۱۴ روز</option>
+          <option value="30">بیش از ۳۰ روز</option>
+        </select>
+      </div>
+      <p class="text-xs opacity-60">کاربرانی که مدتی است اپ را باز نکرده‌اند</p>
+      <div class="overflow-x-auto"><table class="table table-xs" id="atRiskTable"></table></div>
+    </div>
+  </div>
+</div>
 
-    var gridColor = 'rgba(255, 255, 255, 0.08)';
-    var tickColor = 'rgba(255, 255, 255, 0.55)';
-
-    var chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'کاربران آنلاین',
-          data: [],
-          borderColor: '#22c55e',
-          backgroundColor: gradient,
-          borderWidth: 2,
-          tension: 0.3,
-          fill: true,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          pointHoverBackgroundColor: '#22c55e',
-          pointHoverBorderColor: '#ffffff',
-          pointHoverBorderWidth: 1.5
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { precision: 0, color: tickColor },
-            grid: { color: gridColor }
-          },
-          x: {
-            ticks: { autoSkip: true, maxTicksLimit: 10, maxRotation: 0, color: tickColor },
-            grid: { display: false }
-          }
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(17, 24, 39, 0.95)',
-            titleColor: '#e5e7eb',
-            bodyColor: '#e5e7eb',
-            borderColor: 'rgba(34, 197, 94, 0.4)',
-            borderWidth: 1,
-            padding: 10,
-            cornerRadius: 8,
-            displayColors: false
-          }
-        }
-      }
-    });
-
-    function refreshChart() {
-      fetch('/admin/metrics/online-history' + location.search)
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-        .then(function (data) {
-          var points = (data && data.points) || [];
-          chart.data.labels = points.map(function (p) {
-            return new Date(p.t).toLocaleString('fa-IR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-          });
-          chart.data.datasets[0].data = points.map(function (p) { return p.count; });
-          chart.update();
-        })
-        .catch(function () {});
-    }
-
-    refreshCounters();
-    refreshChart();
-    setInterval(refreshCounters, 10000);
-    setInterval(refreshChart, 10000);
-  })();
-</script>
+<script src="/static/vendor/chart.umd.min.js"></script>
+<script src="/static/js/stats-dashboard.js"></script>

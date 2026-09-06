@@ -83,6 +83,27 @@ func SetupDB(t *testing.T) *gorm.DB {
 	return tx
 }
 
+// SetupSharedDB points database.DB at the shared connection pool instead of a
+// per-test transaction, for tests that drive the handlers from many goroutines
+// at once. A gorm transaction is bound to a single database connection, so
+// hundreds of parallel handler goroutines issuing queries through the one
+// *gorm.DB that SetupDB installs would contend on that connection rather than
+// exercising the real pool.
+//
+// The trade-off is that nothing is rolled back: writes made through this land in
+// the real database. Callers must clean up whatever they create and must never
+// bulk-mutate rows they did not create themselves — in a dev environment those
+// rows are the operator's live data.
+func SetupSharedDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	bootstrap(t)
+
+	previous := database.DB
+	database.DB = realDB
+	t.Cleanup(func() { database.DB = previous })
+	return realDB
+}
+
 // AdminToken mints a valid admin-panel JWT (as accepted by
 // middleware.AuthRequired via the Authorization header) for the given user/role.
 func AdminToken(t *testing.T, userID uint, role string) string {

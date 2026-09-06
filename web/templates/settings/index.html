@@ -108,6 +108,19 @@
       </div>
       <input type="checkbox" name="splash_diverse_servers" class="toggle toggle-primary js-setting-toggle" {{ if .s.SplashDiverseServers }}checked{{ end }} />
     </label>
+    <label class="form-control cursor-pointer">
+      <div class="label">
+        <span class="label-text">مولتی‌کانفیگ ادز (چند کانفیگ تبلیغاتی از سرورهای مختلف)</span>
+      </div>
+      <input type="checkbox" name="ads_multi_config_enabled" class="toggle toggle-primary js-setting-toggle" {{ if .s.AdsMultiConfigEnabled }}checked{{ end }} />
+    </label>
+    <label class="form-control">
+      <div class="label">
+        <span class="label-text">تعداد کانفیگ ادز</span>
+        <span class="label-text-alt opacity-70">حداکثر یکی از هر سرور ادز</span>
+      </div>
+      <input class="input input-bordered" type="number" min="1" name="ads_config_count" value="{{ if gt .s.AdsConfigCount 0 }}{{ .s.AdsConfigCount }}{{ else }}1{{ end }}" />
+    </label>
     <label class="form-control">
       <div class="label"><span class="label-text">لینک اپلیکیشن (Link App)</span></div>
       <input class="input input-bordered" name="link_app" value="{{ .s.LinkApp }}" placeholder="https://..." />
@@ -135,14 +148,31 @@
 
 <div class="bg-base-100 rounded-box shadow p-3 mb-4">
   <h2 class="text-xl font-bold mb-2">بکاپ و بازیابی</h2>
-  <p class="text-sm opacity-70 mb-3">خروجی گرفتن و وارد کردن بکاپ فقط به‌صورت ادغام انجام می‌شود و داده‌های فعلی حذف نمی‌شوند.</p>
-  <div class="flex flex-wrap gap-2 items-center">
-    <a class="btn btn-secondary" href="/admin/settings/export">Export</a>
-    <form method="post" action="/admin/settings/import" enctype="multipart/form-data" class="flex flex-wrap gap-2 items-center" onsubmit="return confirm('بکاپ وارد شود و با داده‌های فعلی ادغام شود؟')">
-      <input class="file-input file-input-bordered" type="file" name="backup_file" accept=".json,application/json" required />
-      <button class="btn btn-primary" type="submit">Import</button>
-    </form>
-  </div>
+  <p class="text-sm opacity-70 mb-3">وارد کردن بکاپ فقط به‌صورت ادغام انجام می‌شود و داده‌های فعلی حذف نمی‌شوند. بخش‌هایی که در فایل نباشند دست‌نخورده می‌مانند.</p>
+
+  <form method="get" action="/admin/settings/export" class="mb-4">
+    <input type="hidden" name="sections" value="1" />
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+      {{ range .backupSections }}
+      <label class="flex items-start gap-2 cursor-pointer p-2 rounded-box bg-base-200">
+        <input type="checkbox" name="{{ .Key }}" value="1" class="checkbox checkbox-sm checkbox-primary mt-1" checked />
+        <span>
+          <span class="font-medium">{{ .Label }}</span>
+          {{ if .Note }}<span class="block text-xs opacity-60">{{ .Note }}</span>{{ end }}
+        </span>
+      </label>
+      {{ end }}
+    </div>
+    <div class="alert alert-warning text-sm mb-3">
+      <span>اگر بخش «کاربران و دستگاه‌ها» را انتخاب کنی، فایل بکاپ شامل رمز عبور هش‌شده، توکن کلاینت و کد دعوت کاربران است. آن را مثل خود دیتابیس محرمانه نگه دار.</span>
+    </div>
+    <button class="btn btn-secondary" type="submit">Export</button>
+  </form>
+
+  <form method="post" action="/admin/settings/import" enctype="multipart/form-data" class="flex flex-wrap gap-2 items-center" onsubmit="return confirm('بکاپ وارد شود و با داده‌های فعلی ادغام شود؟')">
+    <input class="file-input file-input-bordered" type="file" name="backup_file" accept=".json,application/json" required />
+    <button class="btn btn-primary" type="submit">Import</button>
+  </form>
 </div>
 
 <script>

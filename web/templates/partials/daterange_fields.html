@@ -1,30 +1,46 @@
-<div class="flex flex-wrap items-end gap-4">
-  <div>
-    <div class="label-text text-xs opacity-70 mb-1">از</div>
-    <div class="flex gap-1">
-      <select name="from_y" class="select select-bordered select-sm">
-        {{ range .Years }}<option value="{{ . }}" {{ if eq $.FromY . }}selected{{ end }}>{{ . }}</option>{{ end }}
-      </select>
-      <select name="from_m" class="select select-bordered select-sm">
-        {{ range .Months }}<option value="{{ .Value }}" {{ if eq $.FromM .Value }}selected{{ end }}>{{ .Label }}</option>{{ end }}
-      </select>
-      <select name="from_d" class="select select-bordered select-sm">
-        {{ range .FromDays }}<option value="{{ . }}" {{ if eq $.FromD . }}selected{{ end }}>{{ . }}</option>{{ end }}
-      </select>
+{{/*
+  The date-range picker's fields. The six from_y ... to_d inputs are the wire
+  format and are unchanged from the original dropdown version, so every page that
+  already links to this partial keeps working; they are just hidden now, driven
+  by the calendar widget in public/js/calendar-picker.js.
+*/}}
+<div class="relative" data-role="calendar-picker" data-calendar="{{ .Calendar }}">
+  <input type="hidden" name="preset" value="{{ .Preset }}">
+  <input type="hidden" name="from_y" value="{{ .FromY }}">
+  <input type="hidden" name="from_m" value="{{ .FromM }}">
+  <input type="hidden" name="from_d" value="{{ .FromD }}">
+  <input type="hidden" name="to_y" value="{{ .ToY }}">
+  <input type="hidden" name="to_m" value="{{ .ToM }}">
+  <input type="hidden" name="to_d" value="{{ .ToD }}">
+
+  <div class="flex flex-wrap items-end gap-4">
+    <div>
+      <div class="label-text text-xs opacity-70 mb-1">از</div>
+      <input type="text" readonly data-role="from-text" value="{{ .FromText }}"
+             class="input input-bordered input-sm w-32 cursor-pointer text-center">
+    </div>
+    <div>
+      <div class="label-text text-xs opacity-70 mb-1">تا</div>
+      <input type="text" readonly data-role="to-text" value="{{ .ToText }}"
+             class="input input-bordered input-sm w-32 cursor-pointer text-center">
+    </div>
+
+    <div class="flex flex-wrap gap-1">
+      {{ range .Presets }}
+      <button type="button" data-preset="{{ .Value }}"
+              class="btn btn-xs {{ if eq $.Preset .Value }}btn-primary{{ else }}btn-ghost{{ end }}">{{ .Label }}</button>
+      {{ end }}
     </div>
   </div>
-  <div>
-    <div class="label-text text-xs opacity-70 mb-1">تا</div>
-    <div class="flex gap-1">
-      <select name="to_y" class="select select-bordered select-sm">
-        {{ range .Years }}<option value="{{ . }}" {{ if eq $.ToY . }}selected{{ end }}>{{ . }}</option>{{ end }}
-      </select>
-      <select name="to_m" class="select select-bordered select-sm">
-        {{ range .Months }}<option value="{{ .Value }}" {{ if eq $.ToM .Value }}selected{{ end }}>{{ .Label }}</option>{{ end }}
-      </select>
-      <select name="to_d" class="select select-bordered select-sm">
-        {{ range .ToDays }}<option value="{{ . }}" {{ if eq $.ToD . }}selected{{ end }}>{{ . }}</option>{{ end }}
-      </select>
+
+  <div data-role="popup"
+       class="hidden absolute z-50 mt-2 p-3 bg-base-100 rounded-box shadow-lg border border-base-300 w-72">
+    <div class="flex items-center justify-between mb-2">
+      <button type="button" data-role="prev" class="btn btn-ghost btn-xs">‹</button>
+      <span data-role="title" class="text-sm font-medium"></span>
+      <button type="button" data-role="next" class="btn btn-ghost btn-xs">›</button>
     </div>
+    <div data-role="grid" class="grid grid-cols-7 gap-0.5"></div>
+    <div data-role="hint" class="text-[10px] opacity-60 mt-2 text-center"></div>
   </div>
 </div>

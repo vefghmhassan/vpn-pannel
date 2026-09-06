@@ -31,6 +31,21 @@ import (
 func New(t *testing.T) *fiber.App {
 	t.Helper()
 	testutil.SetupDB(t)
+	return build(t)
+}
+
+// NewShared builds the same app over the shared connection pool
+// (testutil.SetupSharedDB) rather than a per-test transaction, for concurrency
+// tests that need many handler goroutines running real queries in parallel.
+// Writes are not rolled back — see SetupSharedDB.
+func NewShared(t *testing.T) *fiber.App {
+	t.Helper()
+	testutil.SetupSharedDB(t)
+	return build(t)
+}
+
+func build(t *testing.T) *fiber.App {
+	t.Helper()
 
 	engine := html.New("../../../web/templates", ".html")
 	engine.AddFunc("fmtDate", func(tm *time.Time, system string) string {

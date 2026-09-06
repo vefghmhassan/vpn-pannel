@@ -4,8 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{.title}} - VpnPannel</title>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Served from public/ rather than a CDN: this panel is routinely opened from
+       networks where those CDNs are unreachable, and an admin locked out of the
+       stylesheet cannot fix the servers that would restore access. -->
+  <link href="/static/vendor/daisyui.full.min.css" rel="stylesheet" type="text/css" />
+  <script src="/static/vendor/tailwind.min.js"></script>
+  <style>
+    /* Vazirmatn is what makes Persian numerals and text legible here; without it
+       the panel falls back to whatever the OS offers for Arabic script. */
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('/static/vendor/vazirmatn/Vazirmatn-Regular.woff2') format('woff2');
+      font-weight: 400; font-display: swap;
+    }
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('/static/vendor/vazirmatn/Vazirmatn-Medium.woff2') format('woff2');
+      font-weight: 500; font-display: swap;
+    }
+    @font-face {
+      font-family: 'Vazirmatn';
+      src: url('/static/vendor/vazirmatn/Vazirmatn-Bold.woff2') format('woff2');
+      font-weight: 700; font-display: swap;
+    }
+    body { font-family: 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  </style>
 </head>
 <body class="bg-base-200">
   <div class="navbar bg-base-100 shadow">

@@ -57,7 +57,7 @@ const docTemplate = `{
     "/api/v1/splash/conf": {
       "post": {
         "summary": "Get splash_conf_count nodes: one ads node plus the rest non-ads",
-        "description": "Returns splash_conf_count nodes in total (minimum 2): one ads node and splash_conf_count-1 non-ads nodes. When the splash_diverse_servers setting is on, the non-ads picks are spread across distinct server addresses so a client rarely gets several configs from the same server; with fewer distinct addresses than requested it falls back to filling the remainder from the addresses that exist. The ads node is always picked uniformly at random.",
+        "description": "Returns splash_conf_count nodes in total (minimum 2): one ads node and splash_conf_count-1 non-ads nodes. When the splash_diverse_servers setting is on, the non-ads picks are spread across distinct server addresses so a client rarely gets several configs from the same server; with fewer distinct addresses than requested it falls back to filling the remainder from the addresses that exist. When the ads_multi_config_enabled setting is on, ads_list carries up to ads_config_count nodes with at most one per distinct server address, so asking for more configs than there are ads servers returns fewer rather than repeating a server; otherwise a single ads node is picked uniformly at random.",
         "parameters": [
           {"in": "body", "name": "body", "required": false, "schema": {"$ref": "#/definitions/SplashConfRequest"}}
         ],

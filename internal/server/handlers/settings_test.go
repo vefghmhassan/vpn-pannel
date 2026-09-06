@@ -106,6 +106,55 @@ func TestSettingsUpdate_SplashDiverseServersTogglesOff(t *testing.T) {
 	}
 }
 
+func TestSettingsUpdate_MultiAdsFields(t *testing.T) {
+	app := apptest.New(t)
+	resp := testutil.DoForm(t, app, "POST", "/admin/settings", url.Values{
+		"ads_multi_config_enabled": {"on"},
+		"ads_config_count":         {"3"},
+	}, adminAuth(t))
+	if resp.StatusCode != 302 && resp.StatusCode != 303 {
+		t.Fatalf("expected a redirect, got %d", resp.StatusCode)
+	}
+	var s models.AppSettings
+	database.DB.First(&s, 1)
+	if !s.AdsMultiConfigEnabled {
+		t.Errorf("expected AdsMultiConfigEnabled to be true after checking the box")
+	}
+	if s.AdsConfigCount != 3 {
+		t.Errorf("expected AdsConfigCount 3, got %d", s.AdsConfigCount)
+	}
+}
+
+func TestSettingsUpdate_MultiAdsTogglesOff(t *testing.T) {
+	// Same zero-value trap as the other toggles: omitting the checkbox has to
+	// persist false so the admin can turn multi-config ads back off.
+	app := apptest.New(t)
+	var s models.AppSettings
+	database.DB.First(&s, 1)
+	s.AdsMultiConfigEnabled = true
+	s.AdsConfigCount = 4
+	database.DB.Save(&s)
+
+	resp := testutil.DoForm(t, app, "POST", "/admin/settings", url.Values{
+		"current_version": {"3.2.1"},
+		// ads_multi_config_enabled intentionally omitted == unchecked
+	}, adminAuth(t))
+	if resp.StatusCode != 302 && resp.StatusCode != 303 {
+		t.Fatalf("expected a redirect, got %d", resp.StatusCode)
+	}
+
+	var reloaded models.AppSettings
+	database.DB.First(&reloaded, 1)
+	if reloaded.AdsMultiConfigEnabled {
+		t.Errorf("expected AdsMultiConfigEnabled to be false after submitting the form without the checkbox")
+	}
+	// The count is a separate field and keeps its value, so re-enabling the
+	// toggle later restores the admin's chosen number.
+	if reloaded.AdsConfigCount != 4 {
+		t.Errorf("expected AdsConfigCount to be left at 4, got %d", reloaded.AdsConfigCount)
+	}
+}
+
 func TestSettingsDelete_RemovesSingletonRow(t *testing.T) {
 	app := apptest.New(t)
 	resp := testutil.DoJSON(t, app, "POST", "/admin/settings/delete", nil, adminAuth(t))
