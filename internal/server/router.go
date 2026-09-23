@@ -78,6 +78,13 @@ func RegisterRoutes(app *fiber.App) {
 	admin.Get("/v2ray/:id/edit", handlers.V2RayEditPage)
 	admin.Post("/v2ray/:id/edit", handlers.V2RayUpdate)
 	admin.Post("/v2ray/batch-delete", handlers.V2RayBatchDelete)
+	// Take a node out of rotation without deleting it: is_active is what the
+	// splash query filters on, but nothing could turn it off until now.
+	admin.Post("/v2ray/:id/active", handlers.V2RaySetActive)
+	admin.Post("/v2ray/bulk-active", handlers.V2RayBulkActive)
+	// Move every config off one address and onto another, rewriting RawLink so
+	// clients actually follow.
+	admin.Post("/v2ray/replace-address", handlers.V2RayReplaceAddress)
 	admin.Post("/v2ray/:id/delete", handlers.V2RayDelete)
 	// Outages
 	admin.Get("/outages", handlers.OutagesList)

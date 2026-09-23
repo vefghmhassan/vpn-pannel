@@ -14,8 +14,7 @@
       <div class="flex flex-wrap gap-3 items-end">
         <label class="form-control w-80 max-w-full">
           <div class="label"><span class="label-text">جستجو</span></div>
-          {{/* type=search gives the browser's native clear button, and clearing
-               fires an input event, so the debounce below re-submits for free. */}}
+          {{/* Searching waits for "اعمال" (or Enter); typing alone does not reload. */}}
           <input type="search" name="q" id="v2raySearch" value="{{ .f.Q }}"
                  dir="auto" autocomplete="off"
                  placeholder="نام، آدرس یا IP، پورت، تگ، پروتکل، کشور…"
@@ -196,6 +195,11 @@
             <td>
               <div class="flex items-center gap-2">
                 <a class="btn btn-xs" href="/admin/v2ray/{{ .ID }}/edit?next={{ $.currentURL | urlquery }}">ویرایش</a>
+                {{ if .IsActive }}
+                <button class="btn btn-xs btn-warning" type="submit" formaction="/admin/v2ray/{{ .ID }}/active" formmethod="post" name="active" value="false" onclick="return confirm('این کانفیگ دیگر به اپ داده نمی‌شود. غیرفعال شود؟')">غیرفعال کن</button>
+                {{ else }}
+                <button class="btn btn-xs btn-success" type="submit" formaction="/admin/v2ray/{{ .ID }}/active" formmethod="post" name="active" value="true">فعال کن</button>
+                {{ end }}
                 <button class="btn btn-xs btn-error" type="submit" formaction="/admin/v2ray/{{ .ID }}/delete" formmethod="post" onclick="return confirm('حذف شود؟')">حذف</button>
               </div>
             </td>
@@ -268,39 +272,6 @@
     backdrop.addEventListener("click", () => setOpen(false));
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") setOpen(false);
-    });
-  })();
-
-  (function () {
-    const form = document.getElementById("filterForm");
-    const input = document.getElementById("v2raySearch");
-    if (!form || !input) return;
-
-    // Every search is a full page load, so put the caret back at the end of
-    // the box: without this the field loses focus mid-word and typing a
-    // second character is impossible.
-    if (input.value) {
-      input.focus();
-      try {
-        input.setSelectionRange(input.value.length, input.value.length);
-      } catch (e) {
-        /* some browsers refuse selection on type=search; focus alone is enough */
-      }
-    }
-
-    let timer = null;
-    input.addEventListener("input", () => {
-      clearTimeout(timer);
-      // requestSubmit, not submit, so this behaves exactly like pressing "اعمال".
-      timer = setTimeout(() => {
-        if (form.requestSubmit) form.requestSubmit();
-        else form.submit();
-      }, 400);
-    });
-
-    // Enter submits the form itself; drop the pending timer so it cannot fire again.
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") clearTimeout(timer);
     });
   })();
 </script>
