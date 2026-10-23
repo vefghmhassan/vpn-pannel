@@ -1,6 +1,6 @@
 <div class="card bg-base-100 shadow">
   <form class="card-body" method="post" action="/admin/v2ray/{{ .node.ID }}/edit">
-    <h2 class="card-title">ویرایش V2Ray</h2>
+    <h2 class="card-title">ویرایش V2Ray{{ if .node.IsCustom }} <span class="badge badge-info">کاستوم</span>{{ end }}</h2>
     <input type="hidden" name="next" value="{{ .next }}" />
 
     <div class="tabs">
@@ -29,6 +29,7 @@
             <option {{ if eq .node.Protocol "vmess" }}selected{{ end }}>vmess</option>
             <option {{ if eq .node.Protocol "vless" }}selected{{ end }}>vless</option>
             <option {{ if eq .node.Protocol "trojan" }}selected{{ end }}>trojan</option>
+            {{ if and (ne .node.Protocol "vmess") (ne .node.Protocol "vless") (ne .node.Protocol "trojan") }}<option selected>{{ .node.Protocol }}</option>{{ end }}
           </select>
         </label>
       </div>
@@ -40,8 +41,8 @@
 
     <div id="mode-link" style="display:none">
       <label class="form-control">
-        <div class="label"><span class="label-text">لینک کانفیگ جدید (vmess/vless/trojan)</span></div>
-        <input name="link" class="input input-bordered" placeholder="vmess://... یا vless://..." value="{{ .node.RawLink }}" />
+        <div class="label"><span class="label-text">لینک کانفیگ جدید (vmess / vless / trojan) یا JSON کامل Xray</span></div>
+        <textarea name="link" class="textarea textarea-bordered font-mono text-xs" rows="8" placeholder='vmess://... یا vless://... یا {"outbounds": [...]}'>{{ .node.RawLink }}</textarea>
       </label>
       <p class="text-xs opacity-70 mt-2">با ذخیره، همه فیلدها از روی لینک جایگزین می‌شوند.</p>
     </div>

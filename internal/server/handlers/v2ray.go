@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bufio"
 	"fmt"
 	"net/url"
 	"os"
@@ -236,6 +235,7 @@ func V2RayList(c *fiber.Ctx) error {
 	var nodes []models.V2RayNode
 	v2rayFilteredQuery(f).
 		Order(v2raySortOrders[f.Sort]).Offset((page - 1) * pageSize).Limit(pageSize).Find(&nodes)
+	models.MarkCustom(nodes)
 
 	var addresses []string
 	_ = database.DB.Model(&models.V2RayNode{}).Distinct().Order("address").Pluck("address", &addresses).Error
@@ -387,6 +387,7 @@ func V2RayEditPage(c *fiber.Ctx) error {
 	if err := database.DB.First(&node, id).Error; err != nil {
 		return fiber.ErrNotFound
 	}
+	node.IsCustom = models.IsCustomRawLink(node.RawLink)
 	countries := listCountryCodes()
 	return c.Render("v2ray/edit", fiber.Map{
 		"title":         "Edit V2Ray Node",
@@ -435,12 +436,7 @@ func V2RayCreate(c *fiber.Ctx) error {
 
 		added := 0
 		failed := 0
-		scanner := bufio.NewScanner(strings.NewReader(in.Links))
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue
-			}
+		for _, line := range services.SplitConfigEntries(in.Links) {
 			p, err := services.ParseV2Link(line)
 			if err != nil {
 				failed++
@@ -493,7 +489,7 @@ func V2RayCreate(c *fiber.Ctx) error {
 	if in.Mode == "link" && strings.TrimSpace(in.Link) != "" {
 		p, err := services.ParseV2Link(in.Link)
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).SendString("invalid link")
+			return c.Status(fiber.StatusBadRequest).SendString("invalid link: " + err.Error())
 		}
 		name := strings.TrimSpace(p.Name)
 		if name == "" {
@@ -555,7 +551,7 @@ func V2RayUpdate(c *fiber.Ctx) error {
 		}
 		p, err := services.ParseV2Link(link)
 		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "invalid link")
+			return fiber.NewError(fiber.StatusBadRequest, "invalid link: "+err.Error())
 		}
 		name := strings.TrimSpace(p.Name)
 		if name == "" {
@@ -597,6 +593,16 @@ func V2RayUpdate(c *fiber.Ctx) error {
 		protocol := strings.TrimSpace(in.Protocol)
 		if protocol == "" {
 			return fiber.NewError(fiber.StatusBadRequest, "protocol required")
+		}
+
+		// The app dials RawLink, so a hand-edited address or port has to reach it
+		// too or clients keep connecting to the old host.
+		if strings.TrimSpace(node.RawLink) != "" && (address != node.Address || in.Port != node.Port) {
+			rewritten, err := services.RewriteAddress(node.RawLink, address, in.Port)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, "cannot update raw link: "+err.Error())
+			}
+			node.RawLink = rewritten
 		}
 
 		node.Name = name

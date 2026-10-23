@@ -1,9 +1,11 @@
 package services
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strconv"
@@ -53,10 +55,27 @@ func ParseV2Link(link string) (ParsedV2, error) {
 		return ParsedV2{Name: name, Protocol: protocol, Address: u.Hostname(), Port: port}, nil
 	}
 	// Try parsing as raw xray JSON config
-	if strings.HasPrefix(link, "{") {
+	if IsCustomConfig(link) {
 		return parseXrayJSON(link)
 	}
 	return ParsedV2{}, errors.New("unsupported link")
+}
+
+// flexInt reads a JSON port written either as a number or as a quoted number.
+type flexInt int
+
+func (f *flexInt) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(strings.TrimSpace(string(b)), `"`)
+	if s == "" || s == "null" {
+		*f = 0
+		return nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+	*f = flexInt(n)
+	return nil
 }
 
 // xrayOutbound represents the relevant parts of an xray outbound config.
@@ -64,16 +83,16 @@ type xrayOutbound struct {
 	Protocol string `json:"protocol"`
 	Tag      string `json:"tag"`
 	Settings struct {
-		VNext []struct {
-			Address string `json:"address"`
-			Port    int    `json:"port"`
-			Users   []struct {
-				ID string `json:"id"`
-			} `json:"users"`
+		// Flat form used by newer xray outbounds (vless/trojan/shadowsocks...).
+		Address string  `json:"address"`
+		Port    flexInt `json:"port"`
+		VNext   []struct {
+			Address string  `json:"address"`
+			Port    flexInt `json:"port"`
 		} `json:"vnext"`
 		Servers []struct {
-			Address string `json:"address"`
-			Port    int    `json:"port"`
+			Address string  `json:"address"`
+			Port    flexInt `json:"port"`
 		} `json:"servers"`
 	} `json:"settings"`
 }
@@ -83,50 +102,122 @@ type xrayConfig struct {
 	Outbounds []xrayOutbound `json:"outbounds"`
 }
 
+// IsCustomConfig reports whether raw is a full xray JSON config rather than a
+// vmess/vless/trojan URI. The panel flags such nodes as "custom".
+func IsCustomConfig(raw string) bool {
+	return strings.HasPrefix(trimConfig(raw), "{")
+}
+
+// trimConfig removes surrounding whitespace and a leading UTF-8 BOM, which
+// editors and "copy as" menus like to add to pasted JSON.
+func trimConfig(raw string) string {
+	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "\ufeff"))
+}
+
+func isProxyOutbound(o xrayOutbound) bool {
+	switch o.Protocol {
+	case "freedom", "blackhole", "dns", "":
+		return false
+	}
+	return true
+}
+
 func parseXrayJSON(raw string) (ParsedV2, error) {
+	raw = trimConfig(raw)
 	var cfg xrayConfig
 	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		return ParsedV2{}, errors.New("invalid xray JSON config")
+		return ParsedV2{}, fmt.Errorf("invalid xray JSON config: %w", err)
 	}
 	if len(cfg.Outbounds) == 0 {
 		return ParsedV2{}, errors.New("no outbounds in xray config")
 	}
-	// Find the first non-direct/blackhole outbound (the proxy)
+	// The outbound tagged "proxy" is what clients treat as the main one; fall
+	// back to the first outbound that is not direct/blackhole/dns.
 	var ob xrayOutbound
 	found := false
 	for _, o := range cfg.Outbounds {
-		if o.Protocol != "freedom" && o.Protocol != "blackhole" && o.Protocol != "dns" {
-			ob = o
-			found = true
+		if o.Tag == "proxy" && isProxyOutbound(o) {
+			ob, found = o, true
 			break
+		}
+	}
+	if !found {
+		for _, o := range cfg.Outbounds {
+			if isProxyOutbound(o) {
+				ob, found = o, true
+				break
+			}
 		}
 	}
 	if !found {
 		return ParsedV2{}, errors.New("no proxy outbound found in xray config")
 	}
 	name := cfg.Remarks
-	address := ""
-	port := 0
+	address := ob.Settings.Address
+	port := int(ob.Settings.Port)
 	if len(ob.Settings.VNext) > 0 {
 		address = ob.Settings.VNext[0].Address
-		port = ob.Settings.VNext[0].Port
+		port = int(ob.Settings.VNext[0].Port)
 	} else if len(ob.Settings.Servers) > 0 {
 		address = ob.Settings.Servers[0].Address
-		port = ob.Settings.Servers[0].Port
+		port = int(ob.Settings.Servers[0].Port)
 	}
 	if address == "" {
 		return ParsedV2{}, errors.New("no address found in xray config outbound")
 	}
+	if port <= 0 {
+		return ParsedV2{}, errors.New("no port found in xray config outbound")
+	}
 	if name == "" {
 		name = ob.Tag
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, []byte(raw)); err != nil {
+		return ParsedV2{}, fmt.Errorf("invalid xray JSON config: %w", err)
 	}
 	return ParsedV2{
 		Name:      name,
 		Protocol:  ob.Protocol,
 		Address:   address,
 		Port:      port,
-		RawConfig: raw,
+		RawConfig: compact.String(),
 	}, nil
+}
+
+// SplitConfigEntries splits pasted text into individual configs. A URI takes one
+// line; a JSON config starts at "{" and runs to its matching "}", so it may be
+// pretty-printed over many lines. Blank lines are skipped.
+func SplitConfigEntries(text string) []string {
+	var entries []string
+	text = strings.TrimPrefix(text, "\ufeff")
+	for {
+		text = strings.TrimLeft(text, " \t\r\n")
+		if text == "" {
+			return entries
+		}
+		if text[0] == '{' {
+			dec := json.NewDecoder(strings.NewReader(text))
+			var msg json.RawMessage
+			if err := dec.Decode(&msg); err == nil {
+				entries = append(entries, string(msg))
+				text = text[dec.InputOffset():]
+				continue
+			}
+			// Malformed JSON: hand the rest over as one entry so the parser can
+			// report the real error.
+			entries = append(entries, strings.TrimSpace(text))
+			return entries
+		}
+		line := text
+		if i := strings.IndexByte(text, '\n'); i >= 0 {
+			line, text = text[:i], text[i+1:]
+		} else {
+			text = ""
+		}
+		if line = strings.TrimSpace(line); line != "" {
+			entries = append(entries, line)
+		}
+	}
 }
 
 // RewriteAddress returns link with its host replaced, and its port replaced too
@@ -149,7 +240,7 @@ func RewriteAddress(link, newAddress string, newPort int) (string, error) {
 		return rewriteVmess(link, newAddress, newPort)
 	case strings.HasPrefix(link, "vless://"), strings.HasPrefix(link, "trojan://"):
 		return rewriteURI(link, newAddress, newPort)
-	case strings.HasPrefix(link, "{"):
+	case IsCustomConfig(link):
 		return rewriteXrayJSON(link, newAddress, newPort)
 	default:
 		return "", errors.New("unsupported link")
@@ -311,7 +402,7 @@ func RewriteLabel(link, label string) (string, error) {
 		// "fi 9c" becomes "fi%209c" exactly as the panel already writes it.
 		u.Fragment = label
 		return u.String(), nil
-	case strings.HasPrefix(link, "{"):
+	case IsCustomConfig(link):
 		return link, nil
 	default:
 		return "", errors.New("unsupported link")

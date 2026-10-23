@@ -11,11 +11,11 @@
 
     <div id="mode-link">
       <label class="form-control">
-        <div class="label"><span class="label-text">لینک کانفیگ (vmess/vless/trojan)</span></div>
-        <input name="link" class="input input-bordered" placeholder="vmess://... یا vless://..." />
+        <div class="label"><span class="label-text">لینک کانفیگ (vmess / vless / trojan) یا JSON کامل Xray</span></div>
+        <textarea name="link" class="textarea textarea-bordered font-mono text-xs" rows="4" placeholder='vmess://... یا vless://... یا {"outbounds": [...]}'></textarea>
       </label>
       <label class="form-control mt-3">
-        <div class="label"><span class="label-text">لیست کانفیگ‌ها (هر خط یک لینک)</span></div>
+        <div class="label"><span class="label-text">لیست کانفیگ‌ها (هر خط یک لینک؛ JSON چندخطی هم پذیرفته می‌شود)</span></div>
         <textarea name="links" class="textarea textarea-bordered" rows="6" placeholder="vmess://...\nvless://...\ntrojan://..."></textarea>
       </label>
       <div class="border border-base-300 rounded-box p-3 mt-3 bg-base-200/40">

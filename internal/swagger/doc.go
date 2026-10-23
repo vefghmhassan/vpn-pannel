@@ -429,7 +429,8 @@ const docTemplate = `{
         "country_flag": {"type": "string"},
         "is_active": {"type": "boolean"},
         "capacity": {"type": "integer"},
-        "raw_link": {"type": "string"}
+        "raw_link": {"type": "string", "description": "vmess/vless/trojan URI, or a full xray JSON config as a compact string when is_custom is true"},
+        "is_custom": {"type": "boolean", "description": "true when raw_link is a full xray JSON config (key is IsCustom in the actual response)"}
       }
     },
     "WheelSegment": {

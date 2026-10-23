@@ -539,6 +539,7 @@ func ApiProfile(c *fiber.Ctx) error {
 func ApiNodes(c *fiber.Ctx) error {
 	var nodes []models.V2RayNode
 	database.DB.Where("is_active = ?", true).Order("id desc").Find(&nodes)
+	models.MarkCustom(nodes)
 	return c.JSON(fiber.Map{"nodes": nodes})
 }
 
@@ -600,6 +601,8 @@ func ApiSplashConf(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "no ads nodes available")
 	}
+	models.MarkCustom(noAdsList)
+	models.MarkCustom(adsList)
 	resp := ConfResponse{NoAdsList: noAdsList, AdsList: adsList}
 	if len(noAdsList) > 0 {
 		resp.NoAds = noAdsList[0]

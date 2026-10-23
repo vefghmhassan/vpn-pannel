@@ -177,7 +177,7 @@
             <td>{{ .Name }}</td>
             <td>{{ .Address }}</td>
             <td>{{ .Port }}</td>
-            <td>{{ .Protocol }}</td>
+            <td>{{ .Protocol }}{{ if .IsCustom }} <span class="badge badge-info badge-sm">کاستوم</span>{{ end }}</td>
             <td>
               {{ if .CountryCode }}
                 <span class="inline-flex items-center gap-1">
